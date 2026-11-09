@@ -184,7 +184,7 @@ shipped as bf16 (849 MB) and MTPLX quantized it at load.
 
 | client | version | notes |
 |---|---|---|
-| VS Code | 1.134.0 | `github.copilot.chat.customModels` — see README |
+| VS Code | 1.134.0 | `github.copilot.chat.customModels` — see [docs/clients.md](docs/clients.md) |
 | Claude Code | 2.1.259 | |
 
 VS Code needs `apiType: "chat-completions"`, `apiKey: "none"` (MTPLX checks it
