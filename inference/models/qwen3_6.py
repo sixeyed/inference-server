@@ -1,6 +1,6 @@
 """Qwen3.6-27B - dense 27B, general coding and agentic work.
 
-The previous generation's dense flagship. Superseded by qwen3.8 on this box, but
+The previous generation's dense flagship. Superseded by qwen3.8, but
 kept as the record of how earlier Cline measurements were configured.
 
 Engine:  llama-server (llama.cpp)

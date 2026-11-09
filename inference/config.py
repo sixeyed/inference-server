@@ -60,9 +60,9 @@ def _setting(key: str, default, env: str | None = None):
 # ============================================================
 # The default is the home directory, which is where HuggingFace and MTPLX put
 # things if nobody says otherwise - so a fresh clone works with no config file.
-# This box overrides it to an external volume: a 27B model is 20GB and the
-# internal disk is the scarce one, so it is a capacity decision rather than a
-# speed one (measured here: internal 6.29 GB/s, external 3.85 GB/s).
+# Setting weights_root to an external volume is a capacity decision rather than
+# a speed one: a 27B model is 20GB and the internal disk is the scarce one
+# (measured on an M4 Max: internal 6.29 GB/s, external 3.85 GB/s).
 #
 # The cost is confined to model load. MTPLX reads safetensors into unified
 # memory and closes them; llama.cpp mmaps GGUF and could page back in under
@@ -201,8 +201,9 @@ AUTO_PULL = str(_setting("auto_pull", True, env="INFERENCE_AUTO_PULL")
 # so this is literally the string the clients here already send in their
 # API-key field, which keeps every client config working untouched.
 #
-# Deliberately not a secret: on the LAN it is equivalent to no auth. Set
-# api_key in config.json (and MTPLX_API_KEY for the harness) if that changes.
+# Deliberately not a secret: off loopback it is equivalent to no auth. Set
+# api_key in config.json if that changes (MTPLX_API_KEY for a server started by
+# hand).
 DEFAULT_API_KEY = _setting("api_key", "none")
 
 

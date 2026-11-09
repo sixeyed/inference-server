@@ -52,3 +52,12 @@ def test_each_chip_generation_maps_to_a_profile(monkeypatch, brand, key, chip):
     monkeypatch.setattr(machine, "_sysctl", lambda name: values[name])
     detected = machine.detect_machine()
     assert (detected.key, detected.chip) == (key, chip)
+
+
+def test_less_memory_than_the_profile_assumes_is_warned_about():
+    m4 = machine.machine_from_profile("m4")
+    assert machine.profile_warning(m4) is None                  # 128GB, as assumed
+    from dataclasses import replace
+    small = replace(m4, ram_gb=32)
+    assert "32GB" in machine.profile_warning(small)
+    assert machine.profile_warning(replace(m4, ram_gb=192)) is None

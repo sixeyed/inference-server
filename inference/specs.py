@@ -36,7 +36,7 @@ class LlamaServerSpec:
     alias: str
     hf_repo: str
     hf_file: str | None = None
-    local_path: str | None = None  # explicit -m override, set by run.py
+    local_path: str | None = None  # explicit -m override, from `inference run --model-path`
     ctx: int = 32768
     predict: int = 32768
     parallel: int = 1
@@ -180,8 +180,8 @@ class MtplxServerSpec:
             "--host", host,
             "--port", str(port),
             "--api-key", self.api_key,
-            # Weights on the external volume; the session bank stays internal
-            # because it is read on prefill, not just at load.
+            # Weights under weights_root; the session bank stays on the
+            # internal disk because it is read on prefill, not just at load.
             "--cache-dir", self.cache_dir,
             "--ssd-session-cache-dir", self.session_cache_dir,
             "--profile", self.profile,
@@ -225,7 +225,9 @@ def find_in_hf_cache(hf_repo: str, hf_file: str | None) -> str | None:
     if not hf_file:
         return None
     # Split files are referenced by their first part; -m loads the rest itself.
-    name = os.path.basename(hf_file)
+    # Both the snapshot's own layout (subfolder kept, as huggingface_hub and
+    # `inference pull` write it) and a flat copy of the file count.
+    names = list(dict.fromkeys([hf_file, os.path.basename(hf_file)]))
 
     cache = os.environ.get("HF_HOME")
     hub = (os.path.join(cache, "hub") if cache
@@ -236,7 +238,8 @@ def find_in_hf_cache(hf_repo: str, hf_file: str | None) -> str | None:
         return None
 
     for revision in sorted(os.listdir(snapshots)):
-        candidate = os.path.join(snapshots, revision, name)
-        if os.path.exists(candidate):  # follows the symlink into blobs/
-            return candidate
+        for name in names:
+            candidate = os.path.join(snapshots, revision, name)
+            if os.path.exists(candidate):  # follows the symlink into blobs/
+                return candidate
     return None

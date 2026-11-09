@@ -56,13 +56,10 @@ class ModelHostConfig:
         return cls(**raw)
 
 
-def _run_flags(opts) -> list[str]:
-    """Options as the `inference run` flags that reproduce them on the Mac."""
-    flags = ["--port", str(opts.port), "--bind", opts.bind]
-    if not opts.sandbox:
-        flags.append("--no-sandbox")
-    if opts.ctx:
-        flags += ["--ctx", str(opts.ctx)]
+def _spec_flags(opts) -> list[str]:
+    """The options that change which weights a model needs - shared by `run`
+    and `pull`, so the Mac pulls exactly what it will then launch."""
+    flags = []
     if opts.thinking is True:
         flags.append("--thinking")
     elif opts.thinking is False:
@@ -74,6 +71,16 @@ def _run_flags(opts) -> list[str]:
     if opts.reasoning_effort:
         flags += ["--reasoning-effort", opts.reasoning_effort]
     return flags
+
+
+def _run_flags(opts) -> list[str]:
+    """Options as the `inference run` flags that reproduce them on the Mac."""
+    flags = ["--port", str(opts.port), "--bind", opts.bind]
+    if not opts.sandbox:
+        flags.append("--no-sandbox")
+    if opts.ctx:
+        flags += ["--ctx", str(opts.ctx)]
+    return flags + _spec_flags(opts)
 
 
 class RemoteHost:
@@ -168,22 +175,27 @@ class RemoteHost:
             return False  # preflight asks again, and reports why
         return bool(plan.get("needs_pull"))
 
-    def pull(self, alias, spec, opts, say=print) -> None:
+    def pull(self, alias, spec, opts, say=print, cancel=None) -> None:
         """`inference pull` on the Mac - where the weights have to be.
 
         A long call: a first pull is tens of GB. It is the Mac's own CLI doing
         the work, so the progress lands in its output, not here.
         """
         say(f"     pulling {alias} on {self.config.ssh} (this can take a while)")
-        self.call(["pull", alias], timeout=self.pull_timeout)
+        # Not cancellable from here: the pull runs on the Mac. Stopping the
+        # engine mid-pull leaves it to finish there, and the next launch finds
+        # the weights on disk.
+        self.call(["pull", alias, *_spec_flags(opts)], timeout=self.pull_timeout)
 
     def launch(self, alias, spec, machine, opts, log_dir):
         # log_dir is the engine's; the server's log is written on the Mac, in
         # the checkout, where `inference run` would put it.
         started = time.monotonic()
         try:
-            info = self.call_json(["run", alias, "--detach", "--log-dir", "logs",
-                                   *_run_flags(opts)])
+            # --no-pull: the engine has already pulled. A pull inside this
+            # 30-second call would time out half-way through a download.
+            info = self.call_json(["run", alias, "--detach", "--no-pull",
+                                   "--log-dir", "logs", *_run_flags(opts)])
             pid = int(info["pid"])
         except (RemoteError, KeyError, TypeError, ValueError) as exc:
             raise SystemExit(str(exc)) from exc

@@ -81,6 +81,22 @@ def machine_from_profile(key: str) -> Machine:
     )
 
 
+def profile_warning(machine: Machine) -> str | None:
+    """A warning when this Mac has less memory than its profile assumes.
+
+    Profiles are per chip generation and each assumes one RAM tier - the m4
+    profile is a 128GB M4 Max - so a 32GB M5 on that profile would be offered
+    quants that cannot load. More memory than assumed is only a missed
+    opportunity, and not worth a warning.
+    """
+    assumed = int(MACHINE_PROFILES.get(machine.key, {}).get("ram_gb") or 0)
+    if machine.ram_gb and assumed and machine.ram_gb < assumed:
+        return (f"this Mac has {machine.ram_gb}GB but the '{machine.key}' profile "
+                f"assumes {assumed}GB - some models listed may not load. "
+                f"Tune `machines.{machine.key}` in config.json.")
+    return None
+
+
 def detect_machine() -> Machine:
     """The Mac this is running on, and the settings that follow from it.
 

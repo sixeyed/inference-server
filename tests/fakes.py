@@ -262,7 +262,7 @@ class FakeLauncher:
         self.pull_error: str | None = None
         self.server: FakeModelServer | None = None
 
-    def pull(self, spec, say=print):
+    def pull(self, spec, say=print, cancel=None):
         if self.pull_error:
             from inference.weights import PullError
             raise PullError(self.pull_error)

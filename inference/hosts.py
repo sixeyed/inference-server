@@ -14,11 +14,13 @@ from . import engines, process, weights
 class LocalHost:
     """Model servers as child processes of this engine, on this machine."""
 
-    address = "127.0.0.1"
     remote = False
 
     def __init__(self, launcher=None, stopper=None, puller=None,
-                 engine_check=None):
+                 engine_check=None, bind: str = "127.0.0.1"):
+        # Where to reach the model servers: the address they bind, unless
+        # that is every interface, in which case loopback reaches them.
+        self.address = "127.0.0.1" if bind in ("0.0.0.0", "::", "") else bind
         # Injected so tests can drive the state machine without 30GB of weights
         # on disk. The stopper especially: stop_all() matches on process name,
         # so a test using the real one would reach past a fake server and kill
@@ -55,9 +57,9 @@ class LocalHost:
     def needs_pull(self, alias, spec, opts) -> bool:
         return not process.weights_are_local(spec)
 
-    def pull(self, alias, spec, opts, say=print) -> None:
+    def pull(self, alias, spec, opts, say=print, cancel=None) -> None:
         """Fetch the weights here, with the network - see weights.py."""
-        self._pull(spec, say)
+        self._pull(spec, say=say, cancel=cancel)
 
     def launch(self, alias, spec, machine, opts, log_dir):
         return self._launch(alias, spec, machine, opts, log_dir)

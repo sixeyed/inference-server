@@ -11,6 +11,8 @@ Gitignored, because it describes your machine. Copy `config.example.json` and
 edit. Omit anything you don't need and it falls back to a default that works on
 a fresh clone.
 
+This one serves the network — the defaults keep everything on `127.0.0.1`:
+
 ```json
 {
   "weights_root": "/Volumes/your-ssd/weights",
@@ -42,12 +44,16 @@ The chip is still detected; `machines` only supplies what follows from it, so a
 64GB M4 Max is a config change rather than a code change. Precedence is
 environment variable, then `config.json`, then the built-in default —
 `INFERENCE_WEIGHTS_ROOT`, `INFERENCE_BIND`, `INFERENCE_MODEL_BIND`,
-`INFERENCE_AUTO_PULL`, `INFERENCE_CONFIG`, `HF_HOME` and `MTPLX_API_KEY` all
-win over the file, because setting one is a deliberate act at the moment of
-running something.
+`INFERENCE_AUTO_PULL`, `INFERENCE_CONFIG`, `HF_HOME`, `HF_TOKEN` and
+`MTPLX_API_KEY` all win over the file, because setting one is a deliberate act at the moment of
+running something. One more is only for running off a Mac: `INFERENCE_MACHINE`
+names the profile to stand in when there is no chip to detect — the image's
+test stage sets it.
 
 **`settings.json` — how the proxy behaves right now.** Written by the dashboard's
-Config tab, reloaded on restart. See below.
+Config tab, reloaded on restart. See
+[Stripping client parameters](#stripping-client-parameters) and the sections
+after it.
 
 ## Weights on another volume
 

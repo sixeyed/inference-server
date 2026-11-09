@@ -790,6 +790,7 @@ class EngineHandler(BaseHTTPRequestHandler):
 # ============================================================
 class Engine:
     def __init__(self, args):
+        self.args = args
         self.host = self._model_host()
         self.machine = self._machine()
         self.registry = models.load_all()
@@ -846,8 +847,18 @@ class Engine:
     def _model_host(self):
         """LocalHost, unless config.json names a model host (remote.py)."""
         if not MODEL_HOST:
-            return LocalHost()
-        return RemoteHost(ModelHostConfig.from_dict(MODEL_HOST),
+            return LocalHost(bind=getattr(self.args, "model_bind", None) or MODEL_BIND)
+        config = ModelHostConfig.from_dict(MODEL_HOST)
+        bind = getattr(self.args, "model_bind", None) or MODEL_BIND
+        if bind in ("127.0.0.1", "localhost") and config.address not in (
+                "host.docker.internal", "localhost", "127.0.0.1"):
+            # Model servers on the Mac's loopback can't be reached from another
+            # machine, and the symptom is a launch that never becomes ready.
+            print(yellow(f"WARNING: model_bind is {bind}, so model servers on "
+                         f"{config.address} only listen on its loopback and this "
+                         f"engine cannot reach them. Set model_bind (and a real "
+                         f"api_key) in the engine's config."), flush=True)
+        return RemoteHost(config,
                           local_sha=os.environ.get("INFERENCE_GIT_SHA"),
                           on_drift=self._drift)
 

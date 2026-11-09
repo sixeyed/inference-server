@@ -50,6 +50,7 @@ HF_REPO = "someone/My-Model-14B-GGUF"
 MACHINES = {
     "m4": dict(hf_file="My-Model-14B-Q8_0.gguf", ctx=131072),
     "m1": dict(hf_file="My-Model-14B-Q6_K.gguf", ctx=65536),
+    "m2": dict(hf_file="My-Model-14B-Q4_K_M.gguf", ctx=32768),
     "unknown": dict(hf_file="My-Model-14B-Q4_K_M.gguf", ctx=16384),
 }
 

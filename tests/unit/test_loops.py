@@ -220,7 +220,7 @@ REAL = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "traces", "trace-20260827-121604.jsonl")
 
 
-@pytest.mark.skipif(not os.path.exists(REAL), reason="trace not on this box")
+@pytest.mark.skipif(not os.path.exists(REAL), reason="the private regression trace is not here")
 def test_the_session_this_was_built_for():
     """102 messages, of which 74 are the same 404 thirty-seven times over."""
     record = None

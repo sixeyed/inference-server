@@ -119,12 +119,12 @@ def prepare(module, machine: Machine, opts: Options, warn=None):
     llama.cpp models - running it against MTPLX would silently switch off the
     one thing that engine is for.
 
-    Lives here rather than in run.py because the engine launches the same
+    Lives here rather than in the `run` command because the engine launches the same
     models and the two must not drift: a model started through the router has
     to be the same server you get from the command line, or nothing measured
     through one applies to the other.
 
-    `warn` is called with the gate's warning at the point run.py used to print
+    `warn` is called with the gate's warning at the point `inference run` used to print
     it - before the spec is built - so an Unsupported model still reports the
     build problem first.
 
@@ -176,10 +176,19 @@ def weights_are_local(spec) -> bool:
         return os.path.isdir(os.path.join(
             os.path.expanduser(spec.cache_dir), repo_dir))
 
-    hf_home = os.environ.get("HF_HOME")
-    hub = (os.path.join(hf_home, "hub") if hf_home
-           else os.path.expanduser("~/.cache/huggingface/hub"))
-    return os.path.isdir(os.path.join(hub, f"models--{repo_dir}"))
+    # An MLX repo: a complete snapshot, not just the folder. A partial
+    # huggingface_hub download, or a metadata-only fetch, leaves the folder
+    # behind - and a sandboxed, offline launch would then fail on it.
+    root = weights.hf_repo_dir(spec.hf_repo)
+    try:
+        with open(os.path.join(root, "refs", "main"), encoding="utf-8") as handle:
+            revision = handle.read().strip()
+        blobs = os.listdir(os.path.join(root, "blobs"))
+    except OSError:
+        return False
+    snapshot = os.path.join(root, "snapshots", revision)
+    return (os.path.isdir(snapshot) and bool(os.listdir(snapshot))
+            and not any(b.endswith(".incomplete") for b in blobs))
 
 
 def sandbox_wrap(argv: list[str]) -> tuple[list[str], str | None]:
@@ -214,6 +223,10 @@ def build_argv(spec, machine: Machine, opts: Options,
     sandboxing at all - you would think you were protected half the time.
     """
     exe, engine, gate_warning = resolve_engine(spec)
+    if opts.sandbox and isinstance(spec, MtplxServerSpec):
+        # The weights were pulled before launch; a sandboxed server is never
+        # asked to fetch its own. Without the sandbox it still may.
+        spec.download = False
     argv = [exe] + spec.argv(machine, opts.port, opts.bind)
     warnings = [gate_warning] if gate_warning else []
 
@@ -340,7 +353,7 @@ def launch(alias: str, spec, machine: Machine, opts: Options,
     """Start a model server in the background and return a handle.
 
     No banner and no waiting - the supervisor owns readiness and console
-    output. serve() remains the foreground path for run.py.
+    output. serve() remains the foreground path for `inference run`.
     """
     argv, engine, warnings = build_argv(spec, machine, opts)
 

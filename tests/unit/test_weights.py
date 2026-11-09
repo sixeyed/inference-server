@@ -60,11 +60,18 @@ def test_llama_wants_the_exact_quant(tmp_path, monkeypatch):
     assert process.weights_are_local(spec)
 
 
-def test_mlx_wants_the_repo_directory(tmp_path, monkeypatch):
+def test_mlx_wants_a_complete_snapshot_not_just_the_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     repo = "FakeRockert543/gemma-4-31b-it-MLX-8bit"
     spec = MlxServerSpec(hf_repo=repo)
     assert not process.weights_are_local(spec)
 
-    (tmp_path / "hub" / f"models--{repo.replace('/', '--')}").mkdir(parents=True)
+    root = tmp_path / "hub" / f"models--{repo.replace('/', '--')}"
+    (root / "blobs").mkdir(parents=True)
+    assert not process.weights_are_local(spec), "a bare folder is a partial download"
+
+    (root / "refs").mkdir()
+    (root / "refs" / "main").write_text("abc")
+    (root / "snapshots" / "abc").mkdir(parents=True)
+    (root / "snapshots" / "abc" / "config.json").touch()
     assert process.weights_are_local(spec)

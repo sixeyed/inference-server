@@ -44,12 +44,20 @@ git clone https://github.com/sixeyed/inference-server ~/inference-server
 cd ~/inference-server
 
 ssh-keygen -t ed25519 -f ~/.ssh/inference -C inference-server -N ''
-cat ~/.ssh/inference.pub >> ~/.ssh/authorized_keys
+PUB=$(cat ~/.ssh/inference.pub)
+grep -qF "$PUB" ~/.ssh/authorized_keys || echo "$PUB" >> ~/.ssh/authorized_keys
 ssh-keyscan -t ed25519 localhost 2>/dev/null | sed 's/^localhost/host.docker.internal/' > docker/known_hosts
+
+# prove the key works the way the engine will use it - it should print JSON
+ssh -F /dev/null -i ~/.ssh/inference -o IdentitiesOnly=yes -o BatchMode=yes "$USER@localhost" \
+  'cd ~/inference-server && /usr/bin/python3 -m inference machine'
 ```
 
-**2. Configure the engine** — copy the template and set your user name and the
-checkout path in `model_host`:
+Compose mounts `~/.ssh/inference`; set `INFERENCE_SSH_KEY` to use a different key.
+
+**2. Configure the engine** — copy the template and set your user name, the
+checkout path, and your Mac's profile in `model_host` (the `key` that
+`python3 -m inference machine` printed: `m4`, `m1`, `m2` or `unknown`):
 
 ```bash
 cp docker/config.example.json docker/config.json
@@ -60,11 +68,13 @@ cp docker/config.example.json docker/config.json
   "ssh": "you@host.docker.internal",
   "address": "host.docker.internal",
   "checkout": "/Users/you/inference-server",
-  "python": "/opt/homebrew/bin/python3"
+  "python": "/usr/bin/python3",
+  "machine": "m4"
 }
 ```
 
-**3. Run it:**
+**3. Run it** — after stopping a native `inference engine` if one is running,
+since both want port 8084:
 
 ```bash
 docker compose up -d
@@ -73,7 +83,8 @@ curl -s localhost:8084/health
 
 The engine is on `http://127.0.0.1:8084/v1`, with a
 [dashboard](docs/engine.md#dashboard) at `http://127.0.0.1:8084/`. The first request for a model pulls its weights on
-the Mac — tens of GB for most of them — so do that ahead of time if you like:
+the Mac — tens of GB for most of them — so do that ahead of time if you like,
+on the Mac, in the checkout:
 
 ```bash
 python3 -m inference pull qwen3.8
@@ -91,6 +102,9 @@ python3 -m inference engine          # 127.0.0.1:8084
 python3 -m inference models          # what fits this Mac, and what to install
 python3 -m inference pull <model>    # fetch weights ahead of time
 ```
+
+`pip install -e .` adds a shorter `inference` command, which the docs use:
+`inference engine` is `python3 -m inference engine`.
 
 Every setting has a default that works on a fresh clone; to change them see
 [configuration](docs/configuration.md).

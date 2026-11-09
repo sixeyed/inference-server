@@ -28,7 +28,10 @@ and the next launch resumes it rather than loading half a model.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -49,6 +52,35 @@ _SPLIT = re.compile(r"^(?P<stem>.*)-\d{5}-of-(?P<total>\d{5})\.gguf$")
 
 class PullError(Exception):
     """A pull that did not complete. The partial download is kept for resume."""
+
+
+def _check(cancel) -> None:
+    if cancel is not None and cancel.is_set():
+        raise PullError("cancelled - the partial download is kept, and resumes")
+
+
+@contextlib.contextmanager
+def _exclusive(spec, say):
+    """One pull per model at a time, across processes.
+
+    `inference pull` and an engine's auto-pull of the same model would both
+    append to the same `.incomplete`. The second waits here, then finds the
+    blobs already whole and downloads nothing.
+    """
+    lock_path = marker_path(spec) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    with open(lock_path, "w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            say(f"     waiting for another pull of {spec.hf_repo} to finish")
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
+def _unmark(path: str) -> None:
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(path)
 
 
 # ------------------------------------------------------------
@@ -161,7 +193,7 @@ def _blob_id(sibling: dict) -> tuple[str, int | None, str | None]:
 
 
 def _download(url: str, dest: str, size: int | None, sha256: str | None,
-              progress) -> None:
+              progress, cancel=None) -> None:
     """Fetch url to dest, resuming a partial `.incomplete`, then verify."""
     partial = dest + ".incomplete"
     have = os.path.getsize(partial) if os.path.exists(partial) else 0
@@ -185,13 +217,20 @@ def _download(url: str, dest: str, size: int | None, sha256: str | None,
                 # a second copy onto the first.
                 have = 0
                 digest = hashlib.sha256() if sha256 else None
-            with open(partial, "ab" if have else "wb") as out:
-                for block in iter(lambda: response.read(_CHUNK), b""):
-                    out.write(block)
-                    if digest:
-                        digest.update(block)
-                    have += len(block)
-                    progress(len(block))
+            try:
+                with open(partial, "ab" if have else "wb") as out:
+                    for block in iter(lambda: response.read(_CHUNK), b""):
+                        _check(cancel)
+                        out.write(block)
+                        if digest:
+                            digest.update(block)
+                        have += len(block)
+                        progress(len(block))
+            except (OSError, http.client.HTTPException) as exc:
+                # A dropped connection, a timeout, a full disk. What arrived is
+                # kept in .incomplete, and the next pull resumes from it.
+                raise PullError(f"{os.path.basename(dest)}: {exc!r} after "
+                                f"{have / 1e9:.1f} GB - pull again to resume") from exc
 
     if size is not None and os.path.getsize(partial) != size:
         raise PullError(f"{os.path.basename(dest)}: got "
@@ -203,8 +242,13 @@ def _download(url: str, dest: str, size: int | None, sha256: str | None,
     os.replace(partial, dest)
 
 
-def pull_hf(spec, say=print) -> dict:
+def pull_hf(spec, say=print, cancel=None) -> dict:
     """Fetch a GGUF or MLX repo's files into the HuggingFace cache."""
+    with _exclusive(spec, say):
+        return _pull_hf(spec, say, cancel)
+
+
+def _pull_hf(spec, say, cancel) -> dict:
     repo = spec.hf_repo
     info = repo_info(repo)
     sha = info["sha"]
@@ -232,7 +276,7 @@ def pull_hf(spec, say=print) -> dict:
         url = (f"{HF_ENDPOINT}/{repo}/resolve/{sha}/"
                f"{urllib.parse.quote(name)}")
         meter.file = name
-        _download(url, blob, size, sha256, meter.add)
+        _download(url, blob, size, sha256, meter.add, cancel)
 
     # Links only once every blob is whole, so a snapshot never points at a
     # file that is still arriving.
@@ -248,7 +292,7 @@ def pull_hf(spec, say=print) -> dict:
     os.makedirs(refs, exist_ok=True)
     with open(os.path.join(refs, "main"), "w", encoding="utf-8") as handle:
         handle.write(sha)
-    os.remove(marker)
+    _unmark(marker)
     meter.done()
     return {"repo": repo, "revision": sha, "files": len(files),
             "downloaded_bytes": meter.seen}
@@ -257,8 +301,13 @@ def pull_hf(spec, say=print) -> dict:
 # ------------------------------------------------------------
 # MTPLX
 # ------------------------------------------------------------
-def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None) -> dict:
+def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None, cancel=None) -> dict:
     """`mtplx models --update` for this pack - first download or delta."""
+    with _exclusive(spec, say):
+        return _pull_mtplx(spec, say, runner, cancel)
+
+
+def _pull_mtplx(spec, say, runner, cancel) -> dict:
     exe = shutil.which("mtplx")
     if not exe:
         raise PullError("mtplx is not installed (brew install youssofal/mtplx/mtplx)")
@@ -275,6 +324,10 @@ def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None) -> dict:
     proc = (runner or subprocess.Popen)(
         argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in proc.stdout:
+        if cancel is not None and cancel.is_set():
+            proc.terminate()
+            proc.wait()
+            _check(cancel)
         tail = (tail + [line.rstrip()])[-10:]
         try:
             event = json.loads(line)
@@ -287,7 +340,7 @@ def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None) -> dict:
     if code != 0:
         raise PullError(f"mtplx models --update {spec.hf_repo} exited {code}: "
                         + " | ".join(tail[-3:]))
-    os.remove(marker)
+    _unmark(marker)
     meter.done()
     return {"repo": spec.hf_repo, "downloaded_bytes": meter.seen}
 
@@ -295,14 +348,18 @@ def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None) -> dict:
 # ------------------------------------------------------------
 # The front door
 # ------------------------------------------------------------
-def pull(spec, say=print) -> dict:
-    """Bring this spec's weights up to date on disk. Network, no sandbox."""
+def pull(spec, say=print, cancel=None) -> dict:
+    """Bring this spec's weights up to date on disk. Network, no sandbox.
+
+    `cancel` is a threading.Event: set it and the pull stops at the next
+    chunk, keeping what it has for the next pull to resume.
+    """
     if isinstance(spec, MtplxServerSpec):
-        return pull_mtplx(spec, say)
+        return pull_mtplx(spec, say, cancel=cancel)
     if isinstance(spec, (LlamaServerSpec, MlxServerSpec)):
         if isinstance(spec, LlamaServerSpec) and spec.local_path:
             raise PullError(f"{spec.local_path} is a local file - nothing to pull")
-        return pull_hf(spec, say)
+        return pull_hf(spec, say, cancel=cancel)
     raise PullError(f"don't know how to fetch weights for {type(spec).__name__}")
 
 

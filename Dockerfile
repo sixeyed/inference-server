@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # The engine as a container. No model runs in here - MTPLX and MLX are Apple
 # Silicon only - so this is the router, recorder and dashboard, driving a Mac's
-# model servers over SSH. See "Running in a container" in README.md.
+# model servers over SSH. See "Running in a container" in docs/engine.md.
 
 FROM python:3.14-slim AS runtime-base
 RUN apt-get update \

@@ -212,6 +212,10 @@ class Supervisor:
         # alias being pulled, while one is, for /health and the dashboard.
         self.pull = pull
         self.pulling: str | None = None
+        # Set by shutdown() and unload() to stop a pull in progress. The pull
+        # runs under the swap lock, so without this Ctrl-C would wait out a
+        # 30GB download before the engine could stop.
+        self._cancel_pull = threading.Event()
 
         self.on_load = on_load
         self.on_unload = on_unload
@@ -392,8 +396,9 @@ class Supervisor:
         say = (lambda line: None) if self.quiet else (lambda line: print(grey(line), flush=True))
         with self._lock:
             self.pulling = alias
+        self._cancel_pull.clear()
         try:
-            self.host.pull(alias, spec, self.opts, say=say)
+            self.host.pull(alias, spec, self.opts, say=say, cancel=self._cancel_pull)
         except Exception as exc:  # PullError, RemoteError, disk full, ...
             raise StartupFailed(alias, f"could not fetch the weights: {exc}") from exc
         finally:
@@ -493,6 +498,7 @@ class Supervisor:
             self.on_unload(current)
 
     def unload(self) -> None:
+        self._cancel_pull.set()
         with self._swap:
             self._stop()
 
@@ -500,6 +506,7 @@ class Supervisor:
         """Stop the model on the way out - unless we adopted it, or were asked
         not to. 30GB left resident after the engine quits is the surprising
         outcome; killing something we didn't start is the rude one."""
+        self._cancel_pull.set()
         with self._lock:
             current = self.current
         if current is not None and current.adopted:
@@ -513,7 +520,7 @@ class Supervisor:
     # Adoption
     # --------------------------------------------------------
     def adopt(self, index: dict[str, str]) -> Current | None:
-        """Pick up a server someone started by hand with run.py.
+        """Pick up a server someone started by hand with `inference run`.
 
         Anything you started deliberately shouldn't be executed on sight by the
         first health probe a client happens to send.
@@ -613,7 +620,7 @@ class Supervisor:
         return upstream_id(spec, alias)
 
     def _alive(self) -> bool:
-        """Cheap liveness, because somebody will run stop.py while this is up."""
+        """Cheap liveness, because somebody will run `inference stop` while this is up."""
         current = self.current
         if current is None:
             return False

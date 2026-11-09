@@ -56,3 +56,9 @@ def test_a_missing_engine_is_found_before_any_pull():
     with pytest.raises(SystemExit, match="brew install llama.cpp"):
         host.prepare(module, machine_from_profile("m4"), Options(sandbox=True))
     assert pulled == []
+
+
+@pytest.mark.parametrize("bind, address", [
+    ("127.0.0.1", "127.0.0.1"), ("0.0.0.0", "127.0.0.1"), ("192.168.1.10", "192.168.1.10")])
+def test_the_model_servers_are_probed_where_they_bind(bind, address):
+    assert hosts.LocalHost(bind=bind).address == address

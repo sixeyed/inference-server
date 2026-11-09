@@ -6,12 +6,12 @@ from inference import client_setup, clients, dashboard, models, server
 from inference.machine import Machine
 from inference.models import ModelInfo
 
-M4 = Machine(key="m4", chip="M4 Max", ram_gb=128, cores=16, host="192.168.1.145",
+M4 = Machine(key="m4", chip="M4 Max", ram_gb=128, cores=16, host="192.168.1.10",
              threads=12, batch=4096, ubatch=2048, cache_ram_mb=32768)
 
 HTTPS = {"label": "inference.example.com (HTTPS)", "base_url": "https://inference.example.com/v1",
          "note": "private CA"}
-HTTP = {"label": "192.168.1.118 (HTTP)", "base_url": "http://192.168.1.118:8084/v1",
+HTTP = {"label": "192.168.1.20 (HTTP)", "base_url": "http://192.168.1.20:8084/v1",
         "note": "LAN only"}
 
 
@@ -62,7 +62,7 @@ def test_no_usage_database_still_offers_the_main_clients():
 def test_the_configured_addresses_are_offered_in_order():
     payload = client_setup.payload(_engine(endpoints=[HTTPS, HTTP]))
     assert [e["base_url"] for e in payload["endpoints"]] == [
-        "https://inference.example.com/v1", "http://192.168.1.118:8084/v1"]
+        "https://inference.example.com/v1", "http://192.168.1.20:8084/v1"]
     assert payload["endpoints"][0]["note"] == "private CA"
     assert payload["api_key"] == "none"
 
@@ -70,7 +70,7 @@ def test_the_configured_addresses_are_offered_in_order():
 def test_with_no_configured_addresses_this_machine_is_the_address():
     payload = client_setup.payload(_engine(endpoints=None))
     assert [(e["label"], e["base_url"]) for e in payload["endpoints"]] == [
-        ("192.168.1.145", "http://192.168.1.145:8084/v1")]
+        ("192.168.1.10", "http://192.168.1.10:8084/v1")]
 
 
 def test_only_live_models_are_offered_to_clients():
@@ -88,7 +88,7 @@ def test_the_vscode_block_is_ready_to_paste():
              _info("kat-coder2.5")]
     endpoint = client_setup.payload(_engine(endpoints=[HTTP], infos=infos))["endpoints"][0]
     [provider] = endpoint["vscode"]
-    assert provider["name"] == "192.168.1.118 (HTTP)"
+    assert provider["name"] == "192.168.1.20 (HTTP)"
     assert provider["vendor"] == "customendpoint"
     assert provider["apiKey"] == "none"
     assert provider["apiType"] == "chat-completions"
@@ -96,7 +96,7 @@ def test_the_vscode_block_is_ready_to_paste():
     assert list(by_id) == ["kat-coder2.5", "muse-glimmer", "qwen3.8"]
     qwen = by_id["qwen3.8"]
     assert qwen == {"id": "qwen3.8", "name": "qwen3.8",
-                    "url": "http://192.168.1.118:8084/v1/chat/completions",
+                    "url": "http://192.168.1.20:8084/v1/chat/completions",
                     "toolCalling": True, "vision": True,
                     "maxInputTokens": 249000, "maxOutputTokens": 16000}
     assert by_id["muse-glimmer"]["maxInputTokens"] == 124000
@@ -104,10 +104,10 @@ def test_the_vscode_block_is_ready_to_paste():
 
 
 def test_a_trailing_slash_on_the_base_url_does_not_double_up():
-    endpoint = dict(HTTP, base_url="http://192.168.1.118:8084/v1/")
+    endpoint = dict(HTTP, base_url="http://192.168.1.20:8084/v1/")
     [provider] = client_setup.payload(_engine(endpoints=[endpoint], infos=[_info("qwen3.8")]))[
         "endpoints"][0]["vscode"]
-    assert provider["models"][0]["url"] == "http://192.168.1.118:8084/v1/chat/completions"
+    assert provider["models"][0]["url"] == "http://192.168.1.20:8084/v1/chat/completions"
 
 
 def test_the_header_shows_the_first_configured_address():

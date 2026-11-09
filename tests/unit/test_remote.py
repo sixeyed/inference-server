@@ -109,7 +109,7 @@ def test_launch_detaches_and_hands_back_a_process():
                                    "log_path": "/Users/user/inference-server/logs/x.log"})))
     launched = remote.RemoteHost(CONFIG, runner=mac).launch("x", None, None, Options(port=8083), "/data/logs")
     assert (launched.pid, launched.engine, launched.port) == (4321, "llama-server", 8083)
-    assert mac.commands[0].endswith("-m inference run x --detach --log-dir logs --port 8083 --bind 127.0.0.1")
+    assert mac.commands[0].endswith("-m inference run x --detach --no-pull --log-dir logs --port 8083 --bind 127.0.0.1")
 
 
 def test_a_launch_the_mac_rejects_is_a_system_exit():
@@ -159,3 +159,12 @@ def test_a_refused_remote_launch_stops_nothing(tmp_path):
     with pytest.raises(StartupFailed, match="not on disk"):
         sup.acquire("qwen3-tiny")
     assert not any(" stop " in command or "--detach" in command for command in mac.commands)
+
+
+def test_a_remote_pull_asks_for_the_weights_the_launch_will_need():
+    """kat-coder2.5 pulls a different repo with and without --spec, so the pull
+    has to carry the same options the launch will."""
+    mac = FakeMac(("pull", (0, "", "")))
+    remote.RemoteHost(CONFIG, runner=mac).pull(
+        "kat-coder2.5", None, Options(spec_decode=False, thinking=True), say=lambda _: None)
+    assert mac.commands[0].endswith("-m inference pull kat-coder2.5 --thinking --no-spec")

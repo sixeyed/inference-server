@@ -4,7 +4,11 @@
     "Copy to docker/config.json (gitignored) and fill in your Mac.",
     "host.docker.internal is the Mac running Docker Desktop, from inside a container.",
     "For an engine on another machine, use the Mac's hostname for ssh and address,",
-    "and set model_bind so the model servers listen on an interface it can reach."
+    "and set model_bind so the model servers listen on an interface it can reach -",
+    "plus a real api_key, which the model servers check too.",
+    "machine is the Mac's profile: python3 -m inference machine on the Mac prints it.",
+    "identity and known_hosts are where the entrypoint copies the files compose",
+    "mounts under /etc/inference/ssh - with the 0600 permissions ssh insists on."
   ],
   "model_port": 8083,
   "engine_port": 8084,
@@ -14,7 +18,7 @@
     "ssh": "you@host.docker.internal",
     "address": "host.docker.internal",
     "checkout": "/Users/you/inference-server",
-    "python": "/opt/homebrew/bin/python3",
+    "python": "/usr/bin/python3",
     "identity": "/home/inference/.ssh/id_ed25519",
     "known_hosts": "/home/inference/.ssh/known_hosts",
     "machine": "m4"

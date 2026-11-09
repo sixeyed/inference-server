@@ -1,6 +1,6 @@
 # The engine in a container, driving the Mac that runs the models over SSH.
 # Models cannot run in here - MTPLX and MLX are Apple Silicon only - so this is
-# the router, recorder and dashboard. See "Running in a container" in README.md.
+# the router, recorder and dashboard. See "Running in a container" in docs/engine.md.
 #
 #   cp docker/config.example.json docker/config.json    # then edit
 #   docker compose up -d

@@ -37,7 +37,7 @@ from .config import (
 )
 from .config import apply_weights_env, weights_root_missing
 from .console import blue, cyan, green, grey, red, yellow
-from .machine import Options, Unsupported, detect_machine
+from .machine import Options, Unsupported, detect_machine, profile_warning
 from .process import prepare, serve
 from .server import Engine, EngineHandler, EngineServer
 from .supervisor import StartupFailed
@@ -109,7 +109,9 @@ def _add_sandbox_arg(parser: argparse.ArgumentParser) -> None:
              "first download: missing weights are pulled before launch.")
     parser.add_argument(
         "--no-pull", dest="pull", action="store_false", default=AUTO_PULL,
-        help="don't fetch missing weights before launching - refuse instead")
+        help="don't fetch missing weights before launching. Sandboxed, the "
+             "launch is refused; with --no-sandbox the server downloads "
+             "them itself")
 
 
 def _add_engine_args(parser: argparse.ArgumentParser) -> None:
@@ -243,6 +245,9 @@ def _list_models(machine, registry) -> None:
 
     print()
     print(cyan(f"Models on {machine.chip} ({machine.cores} cores, {machine.ram_gb}GB)"))
+    warning = profile_warning(machine)
+    if warning:
+        print(yellow(f"  {warning}"))
     print()
     for info in live:
         if not info.supported:
@@ -253,7 +258,7 @@ def _list_models(machine, registry) -> None:
             status = green("ok       ")
         print(f"  {status}  {info.alias:<18} {info.engine:<6} {grey(info.summary)}")
 
-    needed = [msg for msg in absent.values() if msg]
+    needed = list(dict.fromkeys(msg for msg in absent.values() if msg))
     if needed:
         print()
         print(yellow("  Servers not installed - those models fail when picked:"))
@@ -372,7 +377,11 @@ def _pull(alias: str, spec) -> int:
     print(grey(f"  pulling {alias} ({spec.hf_repo})"), file=sys.stderr)
     try:
         pull(spec, say=lambda line: print(grey(line), file=sys.stderr, flush=True))
-    except PullError as exc:
+    except KeyboardInterrupt:
+        print(yellow(f"\n  pull of {alias} stopped - run it again to resume"),
+              file=sys.stderr)
+        return 130
+    except (PullError, OSError) as exc:
         print(red(f"ERROR: could not pull {alias}: {exc}"), file=sys.stderr)
         return 1
     return 0
@@ -395,7 +404,8 @@ def pull_command(args) -> int:
     try:
         spec, _ = prepare(registry[alias], machine,
                           Options(thinking=args.thinking,
-                                  spec_decode=args.spec_decode))
+                                  spec_decode=args.spec_decode,
+                                  reasoning_effort=args.reasoning_effort))
     except Unsupported as exc:
         print(red(f"ERROR: {exc}"), file=sys.stderr)
         return 1
@@ -517,9 +527,10 @@ def main(argv: list[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
 
-    # Only the two commands that start a server care. `models` and `stop` still
-    # work with the drive unplugged, and saying so is more useful than refusing.
-    if args.command in ("run", "engine"):
+    # Only the commands that start a server or fetch weights care. `models` and
+    # `stop` still work with the drive unplugged, and saying so is more useful
+    # than refusing.
+    if args.command in ("run", "engine", "pull"):
         problem = weights_root_missing()
         if problem:
             print(red(f"ERROR: {problem}"), file=sys.stderr)

@@ -132,6 +132,8 @@ Stop the engine instead; a clean `TERM` takes the model with it.
 
 ### MLX — `mlx_lm.server`
 
+Optional: no model the engine serves today runs on it — only retired ones.
+
 ```bash
 pip3 install --user mlx-lm
 ```

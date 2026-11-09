@@ -1,6 +1,6 @@
 """The dashboard: static files, and the JSON the page polls for.
 
-Kept apart from engine.py because it is the one part of the system that is not
+Kept apart from server.py because it is the one part of the system that is not
 on the request path for a model - nothing here can make a chat completion slower
 or wrong, and that separation is worth a file.
 

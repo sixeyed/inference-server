@@ -70,7 +70,9 @@ Run the same image anywhere that can SSH to the Mac — a server, a cluster. Set
 `ssh` and `address` in `model_host` to the Mac's hostname, and set `model_bind`
 in the engine's config to an address on the Mac that the engine can reach
 (`0.0.0.0` for all of them): the engine passes it to `inference run` on the Mac,
-and by default model servers listen on loopback only. Behind a reverse proxy,
+and by default model servers listen on loopback only. Opening `model_bind` puts
+the model servers on your network, so set a real `api_key` too — MTPLX checks
+it, and the engine passes it through. Behind a reverse proxy,
 `--trust-proxy` (on in the image) takes each client's address from
 `X-Forwarded-For`.
 
@@ -126,7 +128,7 @@ current model loaded. `inference run` does the same, and you can do it ahead of
 time:
 
 ```bash
-inference pull <model>        # fetch, or update to the latest revision
+python3 -m inference pull <model>   # fetch, or update to the latest revision
 ```
 
 An interrupted pull is marked, so it reads as not on disk and the next launch
@@ -255,8 +257,8 @@ pytest
 ```
 
 `tests/features/` is the behaviour suite (pytest-bdd) and `tests/unit/` the plain
-unit tests. Neither needs a model, a network or a real port — they run in a couple of
-seconds against `fakes.py`, a fake model server that impersonates each engine
+unit tests. Neither needs a model, a network or a real port — they run in about a
+minute against `fakes.py`, a fake model server that impersonates each engine
 including the parts that actually bite: MTPLX 401s a probe with no bearer,
 llama-server answers `{"status":"ok"}` where MTPLX answers `{"ok":true}`, and it
 can be told to die mid-stream, which is the only way to check that a preempted
@@ -303,12 +305,14 @@ settings.json              # live proxy settings, written by the dashboard
 Dockerfile compose.yaml    # the engine as a container - see Running in a container
 docker/                    # entrypoint and config template (config.json, known_hosts gitignored)
 
-tests/                     # what pytest runs: no model, no network, seconds
+tests/                     # what pytest runs: no model, no network, about a minute
   unit/                    # arithmetic, parsing, cache lookups
   features/                # behaviour specs (pytest-bdd) + steps/
   fakes.py                 # the fake model server both suites run against
 
-docs/lessons-learned.md    # what running these models under agents taught us
+docs/                      # backends, engine, routing, configuration, clients,
+                           # adding-a-model, lessons-learned
+PREREQS.md                 # what to install, and the versions verified
 logs/                      # model server output, one file per launch (gitignored)
 ```
 

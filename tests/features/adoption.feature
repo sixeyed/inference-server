@@ -1,5 +1,5 @@
 Feature: Picking up a server that was already running
-  A server started by hand with run.py belongs to whoever started it. The engine
+  A server started by hand with `inference run` belongs to whoever started it. The engine
   uses it rather than restarting it, and never kills it on the way out - the
   first health probe a client sends should not execute somebody's work.
 

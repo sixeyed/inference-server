@@ -21,8 +21,8 @@ ALIAS = "kat-coder2.5"
 FAMILY = "kat"
 
 # The alias used to be a bare "kat-coder". A V3 will land and the two need to be
-# tellable apart, so the version is in the name now. Traces, results/ files and
-# client configs written before the rename still say the old one, and the
+# tellable apart, so the version is in the name now. Traces and client
+# configs written before the rename still say the old one, and the
 # registry keeps routing it here - see models/__init__.py.
 FORMER_ALIASES = ("kat-coder",)
 SUMMARY = "35B-A3B agentic coding MoE - 69.4% SWE-bench Verified, 3B active"

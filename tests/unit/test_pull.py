@@ -162,3 +162,66 @@ def test_a_sandboxed_server_is_told_it_is_offline():
     from inference.machine import Options
     assert process.server_env(Options(sandbox=True))["HF_HUB_OFFLINE"] == "1"
     assert process.server_env(Options(sandbox=False)) is None
+
+
+def test_a_split_gguf_in_a_subfolder_is_on_disk_after_the_pull(hub):
+    spec = _llama("BF16/m-BF16-00001-of-00002.gguf")
+    weights.pull(spec, say=lambda _: None)
+    assert process.weights_are_local(spec)
+
+
+def test_an_mlx_repo_with_a_partial_blob_is_not_on_disk(hub):
+    spec = MlxServerSpec(hf_repo="o/m")
+    weights.pull(spec, say=lambda _: None)
+    assert process.weights_are_local(spec)
+    blobs = os.path.join(weights.hf_repo_dir("o/m"), "blobs")
+    open(os.path.join(blobs, "x.incomplete"), "w").close()
+    assert not process.weights_are_local(spec)
+
+
+def test_an_mlx_folder_with_no_snapshot_is_not_on_disk(hub):
+    os.makedirs(os.path.join(weights.hf_repo_dir("o/m"), "blobs"))
+    assert not process.weights_are_local(MlxServerSpec(hf_repo="o/m"))
+
+
+def test_a_cancelled_pull_stops_and_keeps_what_it_has(hub):
+    import threading
+    cancel = threading.Event()
+    cancel.set()
+    spec = _llama("m-Q4_K_M.gguf")
+    with pytest.raises(weights.PullError, match="cancelled"):
+        weights.pull(spec, say=lambda _: None, cancel=cancel)
+    assert not process.weights_are_local(spec)
+    weights.pull(spec, say=lambda _: None)        # and a later pull completes
+    assert process.weights_are_local(spec)
+
+
+def test_a_dropped_connection_is_a_pull_error_not_a_traceback(hub, monkeypatch):
+    import http.client
+
+    class Broken:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self, n): raise http.client.IncompleteRead(b"")
+    monkeypatch.setattr(weights.urllib.request, "urlopen", lambda *a, **k: Broken())
+    with pytest.raises(weights.PullError, match="pull again to resume"):
+        weights._download("http://x/f", str(os.path.join(os.environ["HF_HOME"], "f")),
+                          10, None, lambda n: None)
+
+
+def test_a_second_pull_waits_for_the_first(hub):
+    import fcntl
+    import threading
+    spec = _llama("m-Q4_K_M.gguf")
+    lock_path = weights.marker_path(spec) + ".lock"
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    said = []
+    with open(lock_path, "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)          # another process is pulling
+        t = threading.Thread(target=weights.pull, args=(spec,), kwargs={"say": said.append})
+        t.start()
+        t.join(0.5)
+        assert t.is_alive() and any("waiting" in s for s in said)
+    t.join(10)
+    assert not t.is_alive() and process.weights_are_local(spec)
