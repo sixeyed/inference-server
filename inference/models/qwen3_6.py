@@ -1,7 +1,7 @@
 """Qwen3.6-27B - dense 27B, general coding and agentic work.
 
 The previous generation's dense flagship. Superseded by qwen3.8 on this box, but
-kept because it's the model the Cline analysis in docs/ was run against.
+kept as the record of how earlier Cline measurements were configured.
 
 Engine:  llama-server (llama.cpp)
 Weights: https://huggingface.co/unsloth/Qwen3.6-27B-GGUF
@@ -14,11 +14,11 @@ ALIAS = "qwen3.6"
 FAMILY = "qwen"
 SUMMARY = "Dense 27B - general coding, agentic tasks"
 
-# Retired. run.py still launches this - the file is the record of how the runs
-# in docs/ were configured, and reproducing one needs this exact quant, context
+# Retired. `inference run` still launches this - the file is the record of how
+# earlier measurements were configured, and reproducing one needs this exact quant, context
 # and sampling. The engine leaves it out of /v1/models and won't route to it
 # without --serve-deprecated.
-DEPRECATED = "superseded by qwen3.6-moe; kept for the Cline analysis in docs/"
+DEPRECATED = "superseded by qwen3.6-moe"
 
 HF_REPO = "unsloth/Qwen3.6-27B-GGUF"
 

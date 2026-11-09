@@ -9,16 +9,26 @@ fetches the weights if it has to, starts the right server for that model
 every turn on the way through, so you can see which model is actually faster
 on your work.
 
+> [!NOTE]
+> This repo is 100% Claude-coded (including these docs).
+
 - **One endpoint, many models** — `GET /v1/models` lists everything that fits
   your Mac; asking for one loads it. One runs at a time, so switching cuts
-  whatever is in flight.
+  whatever is in flight. See [routing](docs/routing.md).
+- **Your choice of models** — Qwen, KAT-Coder and Muse on llama.cpp and MTPLX,
+  tuned per machine. See [backends](docs/backends.md), and
+  [adding a model](docs/adding-a-model.md) is one Python file.
 - **Sandboxed** — model servers run under `sandbox-exec` with outbound network
   denied. Weights are pulled by this repo's own code before launch, never by the
-  server.
-- **Local by default** — everything listens on `127.0.0.1` until you say otherwise.
-- **No dependencies** — standard library Python, nothing to `pip install`.
+  server. See [the engine](docs/engine.md#egress-sandbox).
+- **Local by default** — everything listens on `127.0.0.1` until you say
+  otherwise. See [configuration](docs/configuration.md).
+- **No dependencies** — the Python that ships with macOS is enough; nothing to
+  `pip install`.
 
-Requires an Apple Silicon Mac and the model servers — see [PREREQS.md](PREREQS.md).
+Requires an Apple Silicon Mac, plus the server for the models you want (MTPLX,
+llama.cpp). [PREREQS.md](PREREQS.md#first-run-on-a-new-mac) has the first-run
+steps for a new Mac.
 
 ## Quick start: Docker
 
@@ -61,8 +71,8 @@ docker compose up -d
 curl -s localhost:8084/health
 ```
 
-The engine is on `http://127.0.0.1:8084/v1`, with a dashboard at
-`http://127.0.0.1:8084/`. The first request for a model pulls its weights on
+The engine is on `http://127.0.0.1:8084/v1`, with a
+[dashboard](docs/engine.md#dashboard) at `http://127.0.0.1:8084/`. The first request for a model pulls its weights on
 the Mac — tens of GB for most of them — so do that ahead of time if you like:
 
 ```bash
@@ -78,9 +88,12 @@ The same engine, straight from the checkout:
 
 ```bash
 python3 -m inference engine          # 127.0.0.1:8084
-python3 -m inference models          # what fits this Mac
+python3 -m inference models          # what fits this Mac, and what to install
 python3 -m inference pull <model>    # fetch weights ahead of time
 ```
+
+Every setting has a default that works on a fresh clone; to change them see
+[configuration](docs/configuration.md).
 
 ## VS Code
 
@@ -125,6 +138,7 @@ opencode and Open WebUI are in [docs/clients.md](docs/clients.md).
 | | |
 |---|---|
 | [docs/backends.md](docs/backends.md) | the models, the per-machine deployment, and the llama.cpp / MTPLX / mlx-lm servers |
+| [docs/adding-a-model.md](docs/adding-a-model.md) | adding a new model: one Python file |
 | [docs/engine.md](docs/engine.md) | running in a container, the egress sandbox and pulling weights, the dashboard, usage stats, tests |
 | [docs/routing.md](docs/routing.md) | how requests are routed, models swapped, and the HTTP routes |
 | [docs/configuration.md](docs/configuration.md) | `config.json`, environment variables, and the live proxy settings |

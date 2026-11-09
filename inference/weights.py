@@ -261,7 +261,7 @@ def pull_mtplx(spec: MtplxServerSpec, say=print, runner=None) -> dict:
     """`mtplx models --update` for this pack - first download or delta."""
     exe = shutil.which("mtplx")
     if not exe:
-        raise PullError("mtplx is not installed (brew install mtplx)")
+        raise PullError("mtplx is not installed (brew install youssofal/mtplx/mtplx)")
     cache_dir = os.path.expanduser(spec.cache_dir)
     os.makedirs(cache_dir, exist_ok=True)
     marker = marker_path(spec)

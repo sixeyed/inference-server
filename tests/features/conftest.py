@@ -51,7 +51,8 @@ class Harness:
         self.launcher = launcher
         self.engine.supervisor.host = LocalHost(launcher=launcher.launch,
                                                 stopper=launcher.stop_all,
-                                                puller=launcher.pull)
+                                                puller=launcher.pull,
+                                                engine_check=lambda spec: None)
 
         from inference import usage
         self.engine.attach_usage(usage.UsageDB(args.usage_db))

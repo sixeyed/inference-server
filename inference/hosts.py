@@ -8,7 +8,7 @@ somewhere the models cannot.
 
 from __future__ import annotations
 
-from . import process, weights
+from . import engines, process, weights
 
 
 class LocalHost:
@@ -17,7 +17,8 @@ class LocalHost:
     address = "127.0.0.1"
     remote = False
 
-    def __init__(self, launcher=None, stopper=None, puller=None):
+    def __init__(self, launcher=None, stopper=None, puller=None,
+                 engine_check=None):
         # Injected so tests can drive the state machine without 30GB of weights
         # on disk. The stopper especially: stop_all() matches on process name,
         # so a test using the real one would reach past a fake server and kill
@@ -27,9 +28,17 @@ class LocalHost:
         # And the puller: a test that reached the real one would start
         # downloading tens of GB from HuggingFace.
         self._pull = puller or weights.pull
+        # Is the server binary installed? Injected because the suite runs
+        # without llama.cpp or MTPLX - in CI, and in the image.
+        self._engine_check = engine_check or engines.resolve_engine
 
     def prepare(self, module, machine, opts):
         spec, _ = process.prepare(module, machine, opts)
+        # Before anything else - and above all before a pull. A missing
+        # llama-server found after the download is 30GB fetched for nothing.
+        # Raises SystemExit with the install command, which the supervisor
+        # turns into a refusal with the current model still serving.
+        self._engine_check(spec)
         return spec
 
     def preflight(self, alias, spec, opts) -> str | None:

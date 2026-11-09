@@ -7,14 +7,8 @@ what each server does differently.
 
 Each model is one self-contained file in `inference/models/`: HF repo, quant per
 machine, context, sampling, thinking switches and speculative decoding, comments
-and all. There's duplication between them by design — open two side by side and
-you see exactly where they differ. Adding a model is one new file there; it's
-picked up automatically, and needs two import lines:
-
-```python
-from ..machine import Machine, Options, Unsupported
-from ..specs import LlamaServerSpec
-```
+and all. Adding one is a new file there — see
+[adding-a-model.md](adding-a-model.md).
 
 ## Models
 
@@ -78,17 +72,38 @@ failure modes that make local models painful under Cline.
 
 ## Hardware Configs
 
-Detected per machine, then filled in from `config.json` — see
-[Configuration](configuration.md#configuration). The chip is detected; the address and tuning
-below are what this repo's two boxes were measured at, and live in
-`config.json` rather than in the source.
+The chip is detected from its brand string (`sysctl machdep.cpu.brand_string`,
+e.g. `Apple M4 Max`) and mapped to a profile key. Model files index their
+quant and context on that key, and the profile supplies the machine tuning
+below. The defaults live in `inference/config.py`; `machines` in `config.json`
+overrides them per key — see [Configuration](configuration.md#configuration).
 
 | | M4 Max | M1 Max | M2 |
 |---|---|---|---|
+| Profile key | `m4` | `m1` | `m2` |
 | RAM | 128GB | 64GB | 24GB |
 | Threads | 12 | 10 | 6 |
 | Batch / ubatch | 4096 / 2048 | 2048 / 512 | 1024 / 512 |
 | Prompt cache | 32GB | 16GB | 4GB |
+
+Those three were measured on real machines. Other chips follow the same pattern
+on assumption:
+
+| Chip | Profile key | |
+|---|---|---|
+| M5 | `m4` | **assumed** — tuned like an M4 |
+| M3 | `m2` | **assumed** — tuned like an M2 |
+| anything else | `unknown` | small quants and short contexts, so that something fits |
+
+> **M3 and M5 are assumptions, not measurements.** Neither has been run on real
+> hardware. The mapping assumes they report `Apple M3 …` and `Apple M5 …` the way
+> the others do, and that the nearest older generation with a profile is a safe
+> starting point. Like the existing keys, a generation's profile assumes one RAM
+> tier — the M4 profile is a 128GB M4 Max — so an M5 with less memory may be
+> offered quants that don't fit. The mapping is `CHIP_GENERATIONS` in
+> `inference/machine.py`. The dashboard and `inference models` still show the
+> real chip name. If you run one, tune `machines` in `config.json`, and please
+> open an issue with what worked.
 
 ### Why not BF16 on the M4 Max?
 

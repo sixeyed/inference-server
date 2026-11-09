@@ -40,7 +40,7 @@ SUMMARY = "Dense 27B multimodal on MTPLX - native MTP speculative decode"
 # the llama.cpp models' VISION; the Clients tab tells VS Code from this.
 VISION = True
 
-# run.py reads this to skip the llama.cpp speculative-decoding capability gate,
+# `inference run` reads this to skip the llama.cpp speculative-decoding capability gate,
 # which asks `llama-server --help` about flags that mean nothing here. MTP is
 # native to MTPLX and needs no support check.
 ENGINE = "mtplx"

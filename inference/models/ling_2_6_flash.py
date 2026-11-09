@@ -21,8 +21,8 @@ ALIAS = "ling-2.6-flash"
 FAMILY = "ling"
 SUMMARY = "MoE 104B/7.4B active - fast agentic tasks (M4 Max only)"
 
-# Retired. run.py still launches this - the file is the record of how the runs
-# in docs/ were configured, and reproducing one needs this exact quant, context
+# Retired. `inference run` still launches this - the file is the record of how
+# earlier measurements were configured, and reproducing one needs this exact quant, context
 # and sampling. The engine leaves it out of /v1/models and won't route to it
 # without --serve-deprecated.
 DEPRECATED = "needs an unreleased mlx-lm fork for the bailing_hybrid arch"

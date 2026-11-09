@@ -15,8 +15,8 @@ ALIAS = "qwen3.5"
 FAMILY = "qwen"
 SUMMARY = "MoE 122B/10B active - large context, broad knowledge"
 
-# Retired. run.py still launches this - the file is the record of how the runs
-# in docs/ were configured, and reproducing one needs this exact quant, context
+# Retired. `inference run` still launches this - the file is the record of how
+# earlier measurements were configured, and reproducing one needs this exact quant, context
 # and sampling. The engine leaves it out of /v1/models and won't route to it
 # without --serve-deprecated.
 DEPRECATED = "superseded by qwen3.6-moe"

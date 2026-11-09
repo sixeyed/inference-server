@@ -8,6 +8,7 @@ quant, context, sampling - live in that model's own file under `models/`.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -32,9 +33,27 @@ class Machine:
     cache_ram_mb: int  # llama-server --cache-ram, scaled to RAM
 
 
+# Chip generation, as it appears in the brand string ("Apple M4 Max"), to the
+# profile key model files index on. M1, M2 and M4 are measured. M3 and M5 are
+# ASSUMPTIONS, untested on real hardware: that they report "Apple M3 ..." and
+# "Apple M5 ..." the way the others do, and that each is safely tuned like the
+# nearest older generation with a profile. See docs/backends.md.
+# Order matters only in that no name is a prefix of another.
+CHIP_GENERATIONS: dict[str, str] = {
+    "M5": "m4",
+    "M4": "m4",
+    "M3": "m2",
+    "M2": "m2",
+    "M1": "m1",
+}
+
+
 def _sysctl(name: str) -> str:
     return subprocess.run(
-        ["sysctl", "-n", name], capture_output=True, text=True, check=True
+        # By path when it isn't on PATH - it lives in /usr/sbin, which a
+        # stripped-down environment (launchd, a non-login SSH shell) can lack.
+        [shutil.which("sysctl") or "/usr/sbin/sysctl", "-n", name],
+        capture_output=True, text=True, check=True
     ).stdout.strip()
 
 
@@ -84,15 +103,17 @@ def detect_machine() -> Machine:
     cores = int(_sysctl("machdep.cpu.core_count"))
     ram_gb = round(int(_sysctl("hw.memsize")) / (1024**3))
 
-    key = next((k.lower() for k in ("M4", "M2", "M1") if k in brand), "unknown")
+    generation = next((g for g in CHIP_GENERATIONS if g in brand), None)
+    key = CHIP_GENERATIONS.get(generation, "unknown")
     profile = dict(MACHINE_PROFILES.get(key, MACHINE_PROFILES["unknown"]))
+    # The profile names the chip more precisely than the brand string ("M4
+    # Max") - but only when it is that chip. An M5 tuned like an M4 still says
+    # it is an M5, and an unconfigured machine says what it actually is.
+    tuned_as_itself = generation is not None and generation.lower() == key
 
     return Machine(
         key=key,
-        # A profile may name the chip more precisely than the brand string
-        # ("M4 Max"), but an unconfigured machine should still say what it
-        # actually is rather than an empty string.
-        chip=profile.get("chip") or brand,
+        chip=(profile.get("chip") if tuned_as_itself else None) or brand,
         ram_gb=ram_gb,
         cores=cores,
         host=profile["host"],

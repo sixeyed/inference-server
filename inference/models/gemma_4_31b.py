@@ -1,8 +1,7 @@
 """Gemma 4 31B - dense, MLX. The one that actually commits to tool use in Cline.
 
 Raw throughput is no better than qwen3.6, but in Cline it follows a multi-step
-plan through to the end instead of stalling after the first tool call. See
-docs/gemma-4-31b-cline-perf-analysis.md.
+plan through to the end instead of stalling after the first tool call.
 
 Engine:  mlx_lm.server (mlx-lm)
 Weights: https://huggingface.co/FakeRockert543/gemma-4-31b-it-MLX-8bit
@@ -23,11 +22,11 @@ ALIAS = "gemma-4-31b"
 FAMILY = "gemma"
 SUMMARY = "Dense 31B - best Cline behaviour, commits to multi-step tool use"
 
-# Retired. run.py still launches this - the file is the record of how the runs
-# in docs/ were configured, and reproducing one needs this exact quant, context
+# Retired. `inference run` still launches this - the file is the record of how
+# earlier measurements were configured, and reproducing one needs this exact quant, context
 # and sampling. The engine leaves it out of /v1/models and won't route to it
 # without --serve-deprecated.
-DEPRECATED = "superseded by qwen3.8; kept for the Cline analysis in docs/"
+DEPRECATED = "superseded by qwen3.8"
 
 HF_REPO = "FakeRockert543/gemma-4-31b-it-MLX-8bit"  # ~33GB
 CLIENT_MODEL_ID = HF_REPO  # mlx_lm.server has no --alias

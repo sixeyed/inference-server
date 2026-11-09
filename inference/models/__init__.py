@@ -2,9 +2,9 @@
 
 One module per model. Each one must expose:
 
-    ALIAS    str   - the name you pass to run.py, and the id clients send
-    FAMILY   str   - grouping for `run.py --family`
-    SUMMARY  str   - one line for `run.py --list`
+    ALIAS    str   - the name you pass to `inference run`, and the id clients send
+    FAMILY   str   - grouping for `inference run --family`
+    SUMMARY  str   - one line for `inference models`
     spec(machine, opts) -> LlamaServerSpec | MlxServerSpec | MtplxServerSpec
                      - or raise Unsupported if it won't fit that machine
 
@@ -17,8 +17,8 @@ and may expose:
                             only respond to the full HuggingFace repo id.
     FORMER_ALIASES  tuple - names this model used to have. Old traces, old
                             results and old client configs still say them.
-    DEPRECATED      str   - why it was retired. Keeps `run.py` able to launch it
-                            while keeping it out of the router (see engine.py).
+    DEPRECATED      str   - why it was retired. Keeps `inference run` able to launch
+                            it while keeping it out of the router.
     VISION          bool  - accepts images. llama.cpp models also carry it on
                             the spec; MTPLX models have only this.
     TEST_ONLY       bool  - a fixture for exercising the engine end to end.
@@ -36,10 +36,10 @@ import pkgutil
 from dataclasses import dataclass
 from types import ModuleType
 
-# What `run.py` launches with no arguments, and what the engine falls back to.
+# What `inference run` launches with no arguments, and what the engine falls back to.
 DEFAULT_MODEL = "qwen3.8"
 
-# Family default - what `run.py --family qwen` launches, in listing order.
+# Family default - what `inference run --family qwen` launches, in listing order.
 #
 # Only families with a live model in them. gemma and ling were dropped when
 # their only members were deprecated: offering a family that can't launch
@@ -118,7 +118,7 @@ def describe(machine, registry: dict[str, ModuleType] | None = None,
              ) -> list[ModelInfo]:
     """Every model, with its spec built once so we know whether it fits.
 
-    Shared by `run.py --list` and the engine's GET /v1/models, so the picker in
+    Shared by `inference models` and the engine's GET /v1/models, so the picker in
     VS Code shows exactly what the command line shows.
     """
     from ..machine import Options, Unsupported
@@ -168,7 +168,7 @@ def build_index(infos: list[ModelInfo],
     """Lowercased client-visible name -> alias.
 
     Deprecated models are left out unless asked for, which is how the router
-    declines to serve them while `run.py` still can.
+    declines to serve them while `inference run` still can.
     """
     index: dict[str, str] = {}
     for info in infos:

@@ -15,8 +15,8 @@ ALIAS = "gemma-4-26b-a4b"
 FAMILY = "gemma"
 SUMMARY = "MoE 26B/4B active - lighter Gemma 4 for the same Cline behaviour"
 
-# Retired. run.py still launches this - the file is the record of how the runs
-# in docs/ were configured, and reproducing one needs this exact quant, context
+# Retired. `inference run` still launches this - the file is the record of how
+# earlier measurements were configured, and reproducing one needs this exact quant, context
 # and sampling. The engine leaves it out of /v1/models and won't route to it
 # without --serve-deprecated.
 DEPRECATED = "superseded by qwen3.8; the lighter half of the Gemma 4 comparison"

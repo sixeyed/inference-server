@@ -9,7 +9,7 @@ description = "Run local coding models on Apple Silicon, one at a time, on deman
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 
 # No runtime dependencies, and that is a design constraint rather than an
 # accident: the whole thing has to start with `python -m inference` on a fresh
@@ -39,6 +39,6 @@ testpaths = ["tests"]
 bdd_features_base_dir = "tests/features"
 filterwarnings = [
     "ignore::DeprecationWarning:pytest_bdd.*",
-    "ignore:.*nodeid.*:pytest.PytestRemovedIn10Warning",
-    "ignore:.*baseid.*:pytest.PytestRemovedIn10Warning",
+    "ignore:.*nodeid.*:pytest.PytestDeprecationWarning",
+    "ignore:.*baseid.*:pytest.PytestDeprecationWarning",
 ]

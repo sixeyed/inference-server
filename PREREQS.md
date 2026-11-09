@@ -6,11 +6,45 @@ Versions below are what the setup was last verified against (2026-09-05), not
 minimums — where a real minimum is known, it says so. To check your own machine
 against the list, see [Verifying](#verifying) at the end.
 
+## First run on a new Mac
+
+The minimum, in order:
+
+1. **Command Line Tools.** On a new Mac the first `git` or `python3` asks to
+   install them; say yes. They bring `git` and Python 3.9 — and that Python is
+   enough. The engine needs nothing else from Python: no `pip install`, no venv.
+2. **Homebrew**, from [brew.sh](https://brew.sh).
+3. **The server for the models you want.** The default model, `qwen3.8`, runs on
+   MTPLX; most of the others run on llama.cpp:
+
+   ```bash
+   brew install youssofal/mtplx/mtplx     # qwen3.8
+   brew install llama.cpp                 # kat-coder2.5, qwen3.6-moe, muse-glimmer
+   ```
+
+4. **Disk for the weights** — 15–40 GB per model, pulled on first use into your
+   home directory unless `weights_root` says otherwise.
+
+Docker is optional. It's only for running the engine in a container, and the
+Mac still needs everything above, because that's where the models run.
+
+What happens if something is missing:
+
+| Missing | What you see |
+|---|---|
+| Command Line Tools | macOS offers to install them the first time you run `git` or `python3` |
+| a model's server (`mtplx`, `llama-server`) | the engine still starts and lists every model that fits. Picking one whose server isn't installed fails straight away with the install command — `llama-server not found. Install with: brew install llama.cpp`. Nothing is downloaded, and the model already loaded keeps serving |
+| the weights | pulled on first use, while the request waits — see [docs/engine.md](docs/engine.md#egress-sandbox). Pull ahead of time with `python3 -m inference pull <model>` |
+| Docker | only the container quick start needs it; run natively with `python3 -m inference engine` |
+
+`python3 -m inference models` shows what fits this Mac, and which server each
+model needs.
+
 ## Hardware and OS
 
 | | verified on |
 |---|---|
-| Machine | Apple M4 Max, 128 GB unified memory |
+| Machine | Apple M4 Max, 128 GB unified memory; also run on M1 Max and M2 |
 | OS | macOS 26.4.1, arm64 |
 | Disk | room for the weights you use — 15–40 GB per model |
 
@@ -23,11 +57,19 @@ registry works this out per machine — `models.describe()` marks a model
 in `inference/config.py` for the same reason: the same model files, different
 verdicts about what will run.
 
+> **M3 and M5 are assumptions, not measurements.** The chip is read from its
+> brand string (`Apple M4 Max`), and M3 and M5 are assumed to report the same
+> way. An M5 is tuned like an M4 and an M3 like an M2 — the nearest older
+> generation with a profile — but neither has been run on real hardware. Any
+> other chip falls back to the `unknown` profile, which picks small quants and
+> short contexts so that something fits. See
+> [docs/backends.md](docs/backends.md#hardware-configs).
+
 ## Python
 
 | | version | notes |
 |---|---|---|
-| `python3` | 3.10.11 (`/usr/local/bin/python3`) | `requires-python = ">=3.10"` |
+| `python3` | 3.9.6 (macOS Command Line Tools) to 3.14 | `requires-python = ">=3.9"` — the suite passes on both ends |
 
 **The engine has no runtime dependencies, and that is a design constraint
 rather than an accident** — `python -m inference engine` has to work from a
@@ -110,7 +152,6 @@ mlx_lm.server` returning nothing does not mean it is missing.
 | git | 2.51.2 | the repo |
 | Node.js | v25.1.0 | dashboard JS tests only (`tests/unit/test_dashboard_js.py`) |
 | sqlite3 | 3.51.0 | reading `usage.db` by hand; the engine uses Python's built-in module |
-| curl | 8.7.1 | fetching weights |
 
 Node is genuinely optional — those tests `skipif(shutil.which("node") is None)`.
 They exist because a top-level error in `app.js` aborts the whole script while
@@ -119,11 +160,10 @@ That happened once and was caught by eye, which is not a test strategy.
 
 Taps in use: `youssofal/mtplx`.
 
-There is no `huggingface-cli` on this machine. Weights are fetched with `curl`
-against `https://huggingface.co/<repo>/resolve/main/<file>`, which is also the
-cheap way to update one — comparing local file sizes against
-`/api/models/<repo>/tree/main?recursive=1` shows exactly which files moved. The
-last `qwen3.8` update was 0.24 GB of a 20.7 GB repo.
+No `huggingface-cli` is needed. Weights are pulled by `inference/weights.py`,
+a standard library HuggingFace client, and MTPLX packs by `mtplx models
+--update` — see [docs/engine.md](docs/engine.md#egress-sandbox). Set `HF_TOKEN`
+for gated repos.
 
 ## Development and testing
 
@@ -137,7 +177,7 @@ pip3 install -r requirements-dev.txt
 | pytest-bdd | 8.1.0 | `>=7.0` |
 
 ```bash
-python3 -m pytest tests -q      # ~340 tests, about a minute, no model needed
+python3 -m pytest tests -q      # ~350 tests, about a minute, no model needed
 ```
 
 ## Storage

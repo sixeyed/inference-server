@@ -141,6 +141,21 @@ def find_mtplx() -> str:
     )
 
 
+def missing(engine: str) -> str | None:
+    """Why `engine` can't run here - its not-found message, with the install
+    command - or None when it is installed. `engine` is a ModelInfo.engine:
+    "llama", "mlx" or "mtplx"."""
+    finder = {"llama": find_llama_server, "llama-server": find_llama_server,
+              "mlx": find_mlx_server, "mtplx": find_mtplx}.get(engine)
+    if finder is None:
+        return None
+    try:
+        finder()
+    except SystemExit as exc:
+        return str(exc)
+    return None
+
+
 def resolve_engine(spec) -> tuple[str, str, str | None]:
     """(executable, engine name, warning) for a spec.
 

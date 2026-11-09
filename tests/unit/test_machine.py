@@ -34,3 +34,21 @@ def test_machine_command_prints_json(monkeypatch, capsys):
     assert cli.main(["machine"]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["key"] == "m4" and printed["cores"] == 16
+
+
+# ---------------------------------------- chip generations, measured and assumed
+@pytest.mark.parametrize("brand, key, chip", [
+    ("Apple M4 Max", "m4", "M4 Max"),        # measured: the profile names it
+    ("Apple M1 Max", "m1", "M1 Max"),
+    ("Apple M2", "m2", "M2"),
+    ("Apple M5 Max", "m4", "Apple M5 Max"),  # assumed: tuned like an M4, says M5
+    ("Apple M3 Pro", "m2", "Apple M3 Pro"),  # assumed: tuned like an M2, says M3
+    ("Apple M9 Ultra", "unknown", "Apple M9 Ultra"),
+])
+def test_each_chip_generation_maps_to_a_profile(monkeypatch, brand, key, chip):
+    values = {"machdep.cpu.brand_string": brand, "machdep.cpu.core_count": "12",
+              "hw.memsize": str(64 * 1024**3)}
+    monkeypatch.setattr(machine.sys, "platform", "darwin")
+    monkeypatch.setattr(machine, "_sysctl", lambda name: values[name])
+    detected = machine.detect_machine()
+    assert (detected.key, detected.chip) == (key, chip)

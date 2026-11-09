@@ -236,12 +236,29 @@ def _list_models(machine, registry) -> None:
     retired = [i for i in infos if i.deprecated]
     fixtures = [i for i in infos if i.test_only]
 
+    # Which servers are installed. The first thing a new Mac is missing, and
+    # without it every model reads "ok" and only fails when you pick it.
+    from .engines import missing
+    absent = {e: missing(e) for e in sorted({i.engine for i in live})}
+
     print()
     print(cyan(f"Models on {machine.chip} ({machine.cores} cores, {machine.ram_gb}GB)"))
     print()
     for info in live:
-        status = green("ok    ") if info.supported else red("no fit")
-        print(f"  {status}  {info.alias:<18} {grey(info.summary)}")
+        if not info.supported:
+            status = red("no fit   ")
+        elif absent.get(info.engine):
+            status = yellow("no server")
+        else:
+            status = green("ok       ")
+        print(f"  {status}  {info.alias:<18} {info.engine:<6} {grey(info.summary)}")
+
+    needed = [msg for msg in absent.values() if msg]
+    if needed:
+        print()
+        print(yellow("  Servers not installed - those models fail when picked:"))
+        for msg in needed:
+            print(yellow("    " + " ".join(msg.split())))
 
     if retired:
         print()
