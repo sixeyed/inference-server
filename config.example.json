@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "Copy to config.json and edit. config.json is gitignored: it carries",
+    "addresses and paths specific to one machine.",
+    "Anything omitted falls back to the defaults in inference/config.py, so a",
+    "fresh clone works with no file at all - serving 127.0.0.1 only.",
+    "Environment variables win over this file: INFERENCE_WEIGHTS_ROOT,",
+    "INFERENCE_BIND, INFERENCE_MODEL_BIND, INFERENCE_AUTO_PULL,",
+    "INFERENCE_CONFIG, HF_HOME, HF_TOKEN, MTPLX_API_KEY."
+  ],
+
+  "weights_root": "~",
+
+  "mtplx_session_cache_dir": "~/.mtplx/session-bank",
+
+  "llama_load_mode": "mmap+mlock",
+
+  "bind": "127.0.0.1",
+  "model_bind": "127.0.0.1",
+  "auto_pull": true,
+
+  "model_port": 8083,
+  "engine_port": 8084,
+  "api_key": "none",
+
+  "client_endpoints": [
+    { "label": "this Mac", "base_url": "http://127.0.0.1:8084/v1",
+      "note": "local only, no auth" }
+  ],
+
+  "machines": {
+    "m4": {
+      "chip": "M4 Max",
+      "host": "127.0.0.1",
+      "threads": 12,
+      "batch": 4096,
+      "ubatch": 2048,
+      "cache_ram_mb": 32768
+    }
+  }
+}

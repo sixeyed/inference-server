@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "The engine's config inside the container, mounted at /etc/inference/config.json.",
+    "Copy to docker/config.json (gitignored) and fill in your Mac.",
+    "host.docker.internal is the Mac running Docker Desktop, from inside a container.",
+    "For an engine on another machine, use the Mac's hostname for ssh and address,",
+    "and set model_bind so the model servers listen on an interface it can reach."
+  ],
+  "model_port": 8083,
+  "engine_port": 8084,
+  "api_key": "none",
+  "model_bind": "127.0.0.1",
+  "model_host": {
+    "ssh": "you@host.docker.internal",
+    "address": "host.docker.internal",
+    "checkout": "/Users/you/inference-server",
+    "python": "/opt/homebrew/bin/python3",
+    "identity": "/home/inference/.ssh/id_ed25519",
+    "known_hosts": "/home/inference/.ssh/known_hosts",
+    "machine": "m4"
+  }
+}

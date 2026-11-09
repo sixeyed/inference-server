@@ -1,0 +1,34 @@
+# The engine in a container, driving the Mac that runs the models over SSH.
+# Models cannot run in here - MTPLX and MLX are Apple Silicon only - so this is
+# the router, recorder and dashboard. See "Running in a container" in README.md.
+#
+#   cp docker/config.example.json docker/config.json    # then edit
+#   docker compose up -d
+#
+# Stop a native `inference engine` first: both want 8084, and both would drive
+# the same model port.
+#
+# /data is a named volume, not a bind mount: SQLite's WAL index is shared
+# memory, which does not work across Docker Desktop's VM file share, and a
+# bind-mounted usage.db read from the Mac while the container has it open gets
+# corrupted. Look at it from inside: `docker compose exec inference ...`.
+services:
+  inference:
+    image: ghcr.io/sixeyed/inference-server:${INFERENCE_TAG:-latest}
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    ports:
+      # This machine only. Change to "8084:8084" to serve your network - and
+      # set a real api_key in docker/config.json when you do.
+      - "127.0.0.1:8084:8084"
+    volumes:
+      - inference-data:/data
+      - ./docker/config.json:/etc/inference/config.json:ro
+      - ${INFERENCE_SSH_KEY:-~/.ssh/inference}:/etc/inference/ssh/id_ed25519:ro
+      - ./docker/known_hosts:/etc/inference/ssh/known_hosts:ro
+    restart: unless-stopped
+
+volumes:
+  inference-data:

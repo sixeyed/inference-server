@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>inference engine</title>
+<link rel="stylesheet" href="/static/tailwind.css">
+</head>
+<body class="h-full bg-slate-50 text-slate-800 dark:bg-[#0d1117] dark:text-slate-200 antialiased">
+
+<div class="mx-auto max-w-6xl px-5 py-8">
+
+  <header class="flex flex-wrap items-center gap-3 mb-8">
+    <h1 class="text-xl font-semibold tracking-tight">inference engine</h1>
+    <span id="state-pill"
+          class="rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-200 dark:bg-slate-700">…</span>
+    <span id="machine" class="text-sm text-slate-500 dark:text-slate-400"></span>
+    <span class="grow"></span>
+    <nav class="flex gap-1" role="tablist">
+      <button data-tab="dashboard" class="tab rounded-md px-3 py-1 text-sm">Dashboard</button>
+      <button data-tab="config" class="tab rounded-md px-3 py-1 text-sm">Config</button>
+      <button data-tab="clients" class="tab rounded-md px-3 py-1 text-sm">Clients</button>
+      <button data-tab="logs" class="tab rounded-md px-3 py-1 text-sm">Logs</button>
+    </nav>
+    <span id="endpoint" class="font-mono text-xs text-slate-500 dark:text-slate-400"></span>
+  </header>
+
+  <div id="panel-dashboard">
+
+  <!-- Now serving -->
+  <section class="mb-8 rounded-xl border border-slate-200 dark:border-[#262c36]
+                  bg-white dark:bg-[#161b22] p-5">
+    <div class="flex items-baseline justify-between mb-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wide
+                 text-slate-500 dark:text-slate-400">Now serving</h2>
+      <button id="unload"
+              class="hidden text-xs rounded-md border border-slate-300 dark:border-slate-600
+                     px-2.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-800">Unload</button>
+    </div>
+    <div id="serving"></div>
+  </section>
+
+  <!-- Models -->
+  <section class="mb-8">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide
+               text-slate-500 dark:text-slate-400">Models</h2>
+    <div id="models" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+  </section>
+
+  <!-- Stats -->
+  <section class="mb-8">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide
+               text-slate-500 dark:text-slate-400">Per model</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#262c36]
+                bg-white dark:bg-[#161b22]">
+      <table class="w-full text-sm">
+        <thead class="text-left text-xs uppercase tracking-wide
+                      text-slate-500 dark:text-slate-400">
+          <tr class="border-b border-slate-200 dark:border-[#262c36]">
+            <th class="px-4 py-2.5 font-medium">Model</th>
+            <th class="px-4 py-2.5 font-medium text-right">Requests</th>
+            <th class="px-4 py-2.5 font-medium text-right">tok/s avg</th>
+            <th class="px-4 py-2.5 font-medium text-right">min</th>
+            <th class="px-4 py-2.5 font-medium text-right">max</th>
+            <th class="px-4 py-2.5 font-medium text-right">TTFT avg</th>
+            <th class="px-4 py-2.5 font-medium text-right">max</th>
+            <th class="px-4 py-2.5 font-medium text-right">Output</th>
+            <th class="px-4 py-2.5 font-medium text-right">MTP</th>
+            <th class="px-4 py-2.5 font-medium">Source</th>
+          </tr>
+        </thead>
+        <tbody id="stats"></tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      Average tok/s is pooled — total tokens over total decode time, not the mean
+      of per-request rates. Turns cut by a model swap are excluded.
+    </p>
+  </section>
+
+  <!-- Sessions -->
+  <section class="mb-8">
+    <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide
+               text-slate-500 dark:text-slate-400">Sessions</h2>
+    <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+      One agent conversation each, newest first. Pooled per session, because an
+      average across every session ever served answers nothing.
+    </p>
+    <div class="overflow-x-auto rounded-xl border border-slate-200
+                dark:border-[#262c36] bg-white dark:bg-[#161b22]">
+      <table class="w-full text-sm">
+        <thead class="text-left text-xs uppercase tracking-wide
+                      text-slate-500 dark:text-slate-400">
+          <tr class="border-b border-slate-200 dark:border-[#262c36]">
+            <th class="px-4 py-2.5 font-medium">Started</th>
+            <th class="px-4 py-2.5 font-medium">Model</th>
+            <th class="px-4 py-2.5 font-medium">Client</th>
+            <th class="px-4 py-2.5 font-medium text-right">Turns</th>
+            <th class="px-4 py-2.5 font-medium text-right">tok/s</th>
+            <th class="px-4 py-2.5 font-medium text-right">Output</th>
+            <th class="px-4 py-2.5 font-medium text-right">Tools</th>
+            <th class="px-4 py-2.5 font-medium text-right">Peak ctx</th>
+            <th class="px-4 py-2.5 font-medium text-right">Worst TTFT</th>
+            <th class="px-4 py-2.5 font-medium">Notes</th>
+          </tr>
+        </thead>
+        <tbody id="sessions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Quick chat -->
+  <section class="mb-8">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide
+               text-slate-500 dark:text-slate-400">Quick chat</h2>
+    <div class="rounded-xl border border-slate-200 dark:border-[#262c36]
+                bg-white dark:bg-[#161b22] p-5">
+      <form id="chat-form" class="flex flex-col gap-3 sm:flex-row">
+        <input id="chat-prompt" type="text" autocomplete="off"
+               placeholder="Say something to the loaded model…"
+               class="grow rounded-lg border border-slate-300 dark:border-slate-600
+                      bg-transparent px-3 py-2 text-sm
+                      placeholder:text-slate-400 dark:placeholder:text-slate-500
+                      focus:outline-none focus:ring-2 focus:ring-sky-500/50">
+        <button id="chat-send" type="submit"
+                class="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium
+                       text-white hover:bg-sky-700 disabled:opacity-50
+                       disabled:hover:bg-sky-600">Send</button>
+      </form>
+      <p id="chat-hint" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></p>
+      <div id="chat-out" class="hidden mt-4">
+        <pre id="chat-reply" class="max-h-64 overflow-auto rounded-lg
+             bg-slate-100 dark:bg-[#0d1117] p-3 text-sm leading-relaxed
+             whitespace-pre-wrap"></pre>
+        <div id="chat-stats"
+             class="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recent -->
+  <section>
+    <div class="mb-3 flex flex-wrap items-baseline gap-3">
+      <h2 class="text-sm font-semibold uppercase tracking-wide
+                 text-slate-500 dark:text-slate-400">Recent requests</h2>
+      <span id="recent-range"
+            class="text-xs text-slate-500 dark:text-slate-400"></span>
+      <span class="grow"></span>
+      <div class="flex items-center gap-1">
+        <button id="page-prev"
+                class="rounded-md border border-slate-300 dark:border-slate-600
+                       px-2 py-1 text-xs disabled:opacity-40
+                       enabled:hover:bg-slate-100 dark:enabled:hover:bg-slate-800"
+                >Newer</button>
+        <button id="page-next"
+                class="rounded-md border border-slate-300 dark:border-slate-600
+                       px-2 py-1 text-xs disabled:opacity-40
+                       enabled:hover:bg-slate-100 dark:enabled:hover:bg-slate-800"
+                >Older</button>
+      </div>
+    </div>
+    <div id="recent"
+         class="rounded-xl border border-slate-200 dark:border-[#262c36]
+                bg-white dark:bg-[#161b22] divide-y divide-slate-100
+                dark:divide-[#262c36] font-mono text-xs"></div>
+  </section>
+
+  </div>
+
+  <!-- One session -->
+  <div id="panel-session" class="hidden">
+    <button id="session-back"
+            class="mb-4 rounded-md border border-slate-300 dark:border-slate-600
+                   px-3 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            >&larr; Back</button>
+    <div id="session-summary" class="mb-6"></div>
+    <div class="overflow-x-auto rounded-xl border border-slate-200
+                dark:border-[#262c36] bg-white dark:bg-[#161b22]">
+      <table class="w-full text-sm">
+        <thead class="text-left text-xs uppercase tracking-wide
+                      text-slate-500 dark:text-slate-400">
+          <tr class="border-b border-slate-200 dark:border-[#262c36]">
+            <th class="px-3 py-2.5 font-medium">#</th>
+            <th class="px-3 py-2.5 font-medium">Time</th>
+            <th class="px-3 py-2.5 font-medium text-right">Out</th>
+            <th class="px-3 py-2.5 font-medium text-right">Context</th>
+            <th class="px-3 py-2.5 font-medium text-right">tok/s</th>
+            <th class="px-3 py-2.5 font-medium text-right">TTFT</th>
+            <th class="px-3 py-2.5 font-medium text-right">Defer</th>
+            <th class="px-3 py-2.5 font-medium">Tools called</th>
+            <th class="px-3 py-2.5 font-medium">Finish</th>
+          </tr>
+        </thead>
+        <tbody id="session-turns"></tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      A turn shaded amber repeats the previous turn's tool call exactly &mdash;
+      consecutive repeats are how a loop looks from here.
+    </p>
+  </div>
+
+  <!-- One turn -->
+  <div id="panel-turn" class="hidden">
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <button id="turn-back"
+              class="rounded-md border border-slate-300 dark:border-slate-600
+                     px-3 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+              >&larr; Session</button>
+      <span class="grow"></span>
+      <span id="turn-position" class="text-sm text-slate-500 dark:text-slate-400"></span>
+      <button id="turn-prev"
+              class="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1
+                     text-sm disabled:opacity-40 enabled:hover:bg-slate-100
+                     dark:enabled:hover:bg-slate-800">&larr; Previous</button>
+      <button id="turn-next"
+              class="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1
+                     text-sm disabled:opacity-40 enabled:hover:bg-slate-100
+                     dark:enabled:hover:bg-slate-800">Next &rarr;</button>
+    </div>
+    <div id="turn-body"></div>
+  </div>
+
+  <!-- Config -->
+  <div id="panel-config" class="hidden">
+    <section class="mb-6">
+      <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide
+                 text-slate-500 dark:text-slate-400">Request parameters</h2>
+      <p class="mb-4 max-w-3xl text-sm leading-relaxed
+                text-slate-600 dark:text-slate-400">
+        Clients send their own sampling settings, which override whatever the
+        model's file in <code class="font-mono text-xs">models/</code> tuned it
+        to. Strip one here and the model's own default applies instead. Takes
+        effect on the next request &mdash; no restart &mdash; and is remembered
+        across restarts.
+      </p>
+      <div id="params"
+           class="rounded-xl border border-slate-200 dark:border-[#262c36]
+                  bg-white dark:bg-[#161b22] divide-y divide-slate-100
+                  dark:divide-[#262c36]"></div>
+      <p id="settings-path"
+         class="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400"></p>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide
+                 text-slate-500 dark:text-slate-400">System prompt</h2>
+      <p class="mb-4 max-w-3xl text-sm leading-relaxed
+                text-slate-600 dark:text-slate-400">
+        Clients send their own system prompt &mdash; VS Code's runs to about
+        15,000 characters of Copilot framing. Substitute named blocks of it per
+        client from the prompts shipped in
+        <code class="font-mono text-xs">inference/prompts/</code>. Blocks you
+        don't name pass through untouched, and only the <em>first</em> match of
+        a tag is replaced, so VS Code's second
+        <code class="font-mono text-xs">&lt;instructions&gt;</code> block &mdash;
+        the one carrying workspace skills and agents &mdash; survives.
+      </p>
+      <p class="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+        The same clients send their whole tool surface every turn &mdash; VS Code
+        sends about 23,000 tokens of JSON schema, and the traces here show it
+        calling 18 of 103 tools. A tool set from
+        <code class="font-mono text-xs">inference/toolsets/</code> names the ones
+        it may offer. A set that matches nothing is treated as a typo and
+        ignored: zero tools doesn't fail a coding agent, it quietly stops it
+        being one.
+      </p>
+      <p class="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+        A model that gets stuck re-issuing one tool call cannot sample its way
+        out &mdash; the repetition is across turns, not within a generation, so
+        temperature and penalties never see it. Set a trigger count and the
+        engine replaces a run of byte-identical calls with a note carrying what
+        came back, never the arguments that produced it. A real poll whose
+        output changes is never a match; set <code class="font-mono text-xs">0</code>
+        for one whose output doesn't.
+      </p>
+      <div id="prompt-clients" class="space-y-3"></div>
+    </section>
+  </div>
+
+  <div id="panel-clients" class="hidden">
+    <section class="mb-6">
+      <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide
+                 text-slate-500 dark:text-slate-400">Clients</h2>
+      <p class="mb-4 max-w-3xl text-sm leading-relaxed
+                text-slate-600 dark:text-slate-400">
+        Point a coding client at any of these addresses and pick a model; the
+        first request for a model starts it. The API key is
+        <code class="font-mono text-xs">none</code>. For VS Code, paste the block
+        into your user <code class="font-mono text-xs">settings.json</code> as the
+        value of <code class="font-mono text-xs">github.copilot.chat.customModels</code>.
+      </p>
+      <div id="client-endpoints" class="space-y-3"></div>
+    </section>
+  </div>
+
+  <div id="panel-logs" class="hidden">
+    <section class="mb-8 rounded-xl border border-slate-200 dark:border-[#262c36]
+                    bg-white dark:bg-[#161b22] p-5">
+      <h2 class="mb-2 text-lg font-semibold tracking-tight">Logs</h2>
+      <p class="mb-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+        What the engine changed about a request, and when. Recorded when
+        something <em>changes</em> rather than on every turn, so a long session
+        with steady settings writes nothing. A
+        <span class="font-medium text-amber-600 dark:text-amber-400">drift</span>
+        line is the one to act on: the tool set names a tool the client has
+        stopped offering, which is what a rename in a client release looks like
+        &mdash; the model has silently lost that tool.
+      </p>
+      <div id="events" class="divide-y divide-slate-100 dark:divide-[#262c36]"></div>
+    </section>
+  </div>
+
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

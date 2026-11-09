@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inference-server"
+version = "0.1.0"
+description = "Run local coding models on Apple Silicon, one at a time, on demand"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+
+# No runtime dependencies, and that is a design constraint rather than an
+# accident: the whole thing has to start with `python -m inference` on a fresh
+# Mac. Test-only packages live in requirements-dev.txt.
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/sixeyed/inference-server"
+
+[project.scripts]
+inference = "inference.cli:main"
+
+[tool.setuptools]
+# A flat layout on purpose. `python -m inference engine` has to work from a bare
+# checkout with nothing installed, which a src/ layout would prevent.
+packages = ["inference", "inference.models"]
+
+[tool.setuptools.package-data]
+inference = ["static/*", "prompts/*", "toolsets/*"]
+
+[tool.pytest.ini_options]
+# tests/ is what CI runs: no model, no network, a few seconds.
+testpaths = ["tests"]
+
+# Feature files resolved from here rather than relative to each step module,
+# so moving the tree does not silently break discovery.
+bdd_features_base_dir = "tests/features"
+filterwarnings = [
+    "ignore::DeprecationWarning:pytest_bdd.*",
+    "ignore:.*nodeid.*:pytest.PytestRemovedIn10Warning",
+    "ignore:.*baseid.*:pytest.PytestRemovedIn10Warning",
+]

@@ -1,0 +1,17 @@
+/* Source for static/tailwind.css. Regenerate with the standalone CLI:
+ *
+ *   tailwindcss -i static/input.css -o static/tailwind.css --minify
+ *
+ * The generated file is committed. Nothing is built when the engine starts and
+ * nothing is fetched when the page loads - the dashboard has to work on a box
+ * with no network, the same bar the rest of this repo holds itself to.
+ */
+@import "tailwindcss";
+@source "./index.html";
+@source "./app.js";
+
+@theme {
+  --color-ink: #0d1117;
+  --color-panel: #161b22;
+  --color-line: #262c36;
+}

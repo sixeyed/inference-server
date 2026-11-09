@@ -1,0 +1,4 @@
+# Test-only. The engine itself needs nothing but the standard library, and that
+# stays true - this is for `pytest`, not for `python engine.py`.
+pytest>=8.0
+pytest-bdd>=7.0

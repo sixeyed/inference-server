@@ -1,0 +1,34 @@
+# VS Code Copilot: every tool the model actually called, plus fallbacks.
+#
+# Measured over 15 trace files - 1,275 requests, 1,410 tool calls. VS Code
+# offered 103 distinct tools across those sessions and 18 were ever called.
+# This is those 18, less the two that were called exactly once each
+# (vscode_askQuestions, vscode_searchExtensions_internal), plus three
+# companions the traces would not show until something goes wrong.
+#
+# ~7,300 tokens against the ~23,200 VS Code sends unfiltered.
+
+# --- the working set: 96% of every call ---
+read_file                 # 411 calls
+grep_search               # 436 calls - the most used tool by some way
+run_in_terminal           # 304 calls
+replace_string_in_file    #  95 calls
+list_dir                  #  35 calls
+file_search               #  20 calls
+
+# --- regular, low volume ---
+task_complete             #  29 calls
+get_errors                #  15 calls
+memory                    #  15 calls
+create_file               #  14 calls
+fetch_webpage             #  14 calls
+manage_todo_list          #  11 calls
+
+# --- companions: rare in the traces, needed when they are needed ---
+get_terminal_output       # the only way back to a backgrounded terminal
+insert_edit_into_file     # Copilot's documented fallback when replace fails
+resolve_memory_file_uri   # pairs with memory
+
+# --- github: 5 calls across 15 sessions. First candidate to cut. ---
+github_repo
+github_text_search

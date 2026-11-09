@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.DS_Store
+**/__pycache__
+**/*.pyc
+*.egg-info
+.pytest_cache
+traces
+logs
+docs
+usage.db*
+config.json
+settings.json
+docker/config.json
+docker/known_hosts
