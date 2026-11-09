@@ -16,7 +16,7 @@ import json
 import mimetypes
 import os
 
-from . import prompts, toolsets, turns
+from . import about, prompts, toolsets, turns
 from . import client_setup, clients
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -39,6 +39,8 @@ class Dashboard:
             return self._file(handler, route[len("/static/"):])
         if route == "/api/state":
             return self._send(handler, self._state())
+        if route == "/api/about":
+            return self._send(handler, about.about())
         if route == "/api/models":
             handler._models()
             return True

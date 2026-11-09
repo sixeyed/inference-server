@@ -15,6 +15,8 @@ RUN apt-get update \
 # comes along without a packaging manifest to keep in step.
 WORKDIR /app
 COPY inference ./inference
+# The dashboard footer reads its name, version and repository from here.
+COPY pyproject.toml ./
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # ---- the suite, on Linux, against the code being shipped -------------------

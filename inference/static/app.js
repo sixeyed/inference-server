@@ -916,6 +916,29 @@ $("session-back").addEventListener("click", () => {
   showTab("dashboard");
 });
 
+// The footer: which build this is, read once - it cannot change while the page
+// is open. The repository's own /commit/<sha> page works on GitHub and most other forges.
+async function showAbout() {
+  const a = await get("/api/about").catch(() => null);
+  if (!a) return;
+  const link = (href, text) => {
+    const el = document.createElement("a");
+    el.href = href;
+    el.textContent = text;
+    el.className = "text-sky-700 dark:text-sky-400";
+    return el;
+  };
+  const repo = (a.repository || "").replace(/\/+$/, "");
+  const parts = [`${a.name || "inference"} ${a.version || ""}`.trim()];
+  if (a.sha) parts.push(repo ? link(`${repo}/commit/${a.sha}`, a.sha) : a.sha);
+  if (repo) parts.push(link(repo, repo.replace(/^https?:\/\//, "")));
+  const footer = $("about");
+  parts.forEach((part, i) => {
+    if (i) footer.append(" · ");
+    footer.append(part);
+  });
+}
+
 window.addEventListener("hashchange", routeFromHash);
 
 function routeFromHash() {
@@ -937,5 +960,6 @@ $("unload").addEventListener("click", async () => {
 // and a `let` read before its declaration throws rather than returning
 // undefined - which would abort the whole script silently.
 routeFromHash();
+showAbout();
 refresh();
 setInterval(refresh, POLL_MS);

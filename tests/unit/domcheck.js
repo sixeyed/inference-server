@@ -6,6 +6,7 @@ const el = new Proxy({}, {
     if (k === "addEventListener") return () => {};
     if (k === "dataset") return {};
     if (k === "querySelectorAll") return () => [];
+    if (k === "append") return () => {};
     return typeof k === "string" && k.startsWith("inner") ? "" : el;
   },
   set: () => true,
@@ -13,6 +14,7 @@ const el = new Proxy({}, {
 global.document = {
   getElementById: () => el,
   querySelectorAll: () => [],
+  createElement: () => el,
   addEventListener: () => {},
 };
 global.window = { addEventListener: () => {} };

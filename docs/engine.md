@@ -153,6 +153,10 @@ sets the per-client system-prompt substitution (see
 [Rewriting the system prompt](configuration.md#rewriting-the-system-prompt)). It can drive the engine: clicking **Load** on a model starts it, and
 says `Load (cuts current turn)` while a request is in flight, because it does.
 
+The footer shows which build is running: the name, version and repository
+link from the checkout's `pyproject.toml`, and the commit - `INFERENCE_GIT_SHA`
+in the image, `git rev-parse` in a checkout. The same JSON is at `/api/about`.
+
 Tailwind is **vendored**, not built. `static/tailwind.css` is generated once and
 committed, so the page needs no network and `inference engine` needs no
 toolchain. To regenerate after changing the markup:
@@ -289,6 +293,7 @@ inference/                 # the package
   remote.py                # RemoteHost: the same lifecycle, over SSH to a Mac
   server.py                # the HTTP front door: route, relay, record
   dashboard.py             # static files and the /api/* JSON the page polls
+  about.py                 # name, version, repository and commit, for the footer
   usage.py                 # SQLite: one row per turn, and the aggregates
   tracing.py               # JSONL trace records, per-turn console line
   sse.py                   # SSE first-token probing and stream reassembly
