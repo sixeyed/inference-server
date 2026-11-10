@@ -34,6 +34,7 @@ from .config import (
     DEFAULT_TRACE_DIR,
     DEFAULT_USAGE_DB,
     MODEL_BIND,
+    TRUST_PROXY,
 )
 from .config import apply_weights_env, weights_root_missing
 from .console import blue, cyan, green, grey, red, yellow
@@ -129,7 +130,7 @@ def _add_engine_args(parser: argparse.ArgumentParser) -> None:
                         default="current",
                         help="what to serve when the client sends an id we "
                              "don't know (default: whatever is loaded)")
-    parser.add_argument("--trust-proxy", action="store_true",
+    parser.add_argument("--trust-proxy", action="store_true", default=TRUST_PROXY,
                         help="take the client address from X-Forwarded-For - "
                              "only behind a proxy you run, like the ingress")
     parser.add_argument("--serve-deprecated", action="store_true",
@@ -321,6 +322,7 @@ def run_command(args) -> int:
         dry_run=args.dry_run,
         sandbox=args.sandbox,
         bind=args.bind,
+        api_key=args.api_key,
     )
 
     if args.plan:
@@ -476,6 +478,8 @@ def build_parser() -> argparse.ArgumentParser:
                           "and log as JSON, and exit")
     run.add_argument("--log-dir", default=DEFAULT_LOG_DIR,
                      help="where --detach writes the server's log")
+    run.add_argument("--api-key", default=DEFAULT_API_KEY,
+                     help="the key MTPLX checks (the other servers ignore it)")
     _add_thinking_args(run)
     _add_sandbox_arg(run)
     run.set_defaults(func=run_command)

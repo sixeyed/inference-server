@@ -283,6 +283,21 @@ class Supervisor:
                 self._inflight += 1
                 return current
 
+    def acquire_current(self) -> Current | None:
+        """Register one in-flight request on whatever is serving, or None.
+
+        For relays that must never start a model. Checking status() and then
+        calling acquire() with the alias it named is a race: a swap that lands
+        in between makes acquire() swap *back*, killing the new model and its
+        stream for the sake of a /props poll.
+        """
+        with self._lock:
+            if (self.state is State.READY and self.current
+                    and self._alive()):
+                self._inflight += 1
+                return self.current
+        return None
+
     def release(self) -> None:
         with self._lock:
             self._inflight = max(0, self._inflight - 1)
@@ -570,10 +585,17 @@ class Supervisor:
         # exits on its own - llama.cpp does, on an unparseable generation -
         # otherwise leaves the dashboard reporting "ready" against a pid that
         # is gone, until someone happens to send a request.
+        died = None
         with self._lock:
             if self.state is State.READY and not self._alive():
                 self.state = State.IDLE
-                self.current = None
+                died, self.current = self.current, None
+        # Outside the lock: on_unload writes to the database. Without it the
+        # load row never gets its unloaded_at, and the memory sampler goes on
+        # polling a server that has gone.
+        if died is not None and self.on_unload:
+            self.on_unload(died)
+        with self._lock:
             current = self.current
             state = self.state
             inflight = self._inflight

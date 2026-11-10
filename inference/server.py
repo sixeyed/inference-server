@@ -15,12 +15,14 @@ The CLI that drives this lives in cli.py.
 from __future__ import annotations
 
 import copy
+import hmac
 import json
 import os
 import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -36,6 +38,7 @@ from . import models
 from . import tracing
 from . import usage
 from .config import (AUTO_PULL, CLIENT_ENDPOINTS, DEFAULT_API_KEY, DEFAULT_PORT,
+                     NO_AUTH_KEY,
                      DEFAULT_SETTINGS_FILE, MODEL_BIND, MODEL_HOST)
 from .console import blue, cyan, green, grey, red, yellow
 from .hosts import LocalHost
@@ -238,6 +241,8 @@ class EngineHandler(BaseHTTPRequestHandler):
     # --------------------------------------------------------
     def do_GET(self):
         route = self._route()
+        if not self._admit(route, write=False):
+            return
         if route in ("/v1/models", "/models"):
             return self._models()
         if route == "/health":
@@ -252,6 +257,8 @@ class EngineHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = self._route()
+        if not self._admit(route, write=True):
+            return
         if self.engine.dashboard is not None:
             handled = self.engine.dashboard.post(self, route)
             if handled:
@@ -264,7 +271,68 @@ class EngineHandler(BaseHTTPRequestHandler):
         return self._relay("POST")
 
     def do_DELETE(self):
+        if not self._admit(self._route(), write=True):
+            return
         return self._relay("DELETE")
+
+    # --------------------------------------------------------
+    # Admission
+    # --------------------------------------------------------
+    # Open without a key: liveness, and the dashboard's page and assets - the
+    # page holds no data, and it is what asks for the key.
+    OPEN_ROUTES = ("/", "/health")
+
+    def _admit(self, route: str, write: bool) -> bool:
+        """Refuse the request (and answer it) unless it may go on.
+
+        Two checks. A write from another site's page is refused whatever the
+        key: a browser sends Origin on a cross-site POST, and without this any
+        page the operator opens could swap models or change settings on an
+        engine that answers on loopback with no key. Clients that aren't
+        browsers send no Origin, so they are unaffected.
+
+        Then the key. The default `none` checks nothing; any other api_key must
+        come with the request - as `Authorization: Bearer <key>`, or
+        `x-api-key` for Anthropic-API clients - on everything but the open
+        routes. Without this the engine filled the key in for a client that
+        sent none, and a real key protected nothing.
+        """
+        if write and self._cross_site():
+            self._raw(403, _error("cross_site_request",
+                                  "cross-site requests are refused"))
+            return False
+        if self._authorized(route):
+            return True
+        self._raw(401, _error("invalid_api_key",
+                              "this engine needs its API key - send "
+                              "`Authorization: Bearer <api_key>`"))
+        return False
+
+    def _cross_site(self) -> bool:
+        origin = self.headers.get("Origin")
+        if not origin:
+            return False
+        host = self.headers.get("Host", "")
+        return urlsplit(origin).netloc.lower() != host.lower()
+
+    def _authorized(self, route: str) -> bool:
+        key = self.engine.api_key
+        if key == NO_AUTH_KEY:
+            return True
+        if route in self.OPEN_ROUTES or route.startswith("/static/"):
+            return True
+        presented = self._presented_key()
+        return bool(presented) and hmac.compare_digest(
+            presented.encode(), key.encode())
+
+    def _presented_key(self) -> str:
+        for name, value in self.headers.items():
+            if name.lower() == "authorization":
+                parts = value.strip().split(None, 1)
+                if len(parts) == 2 and parts[0].lower() == "bearer":
+                    return parts[1].strip()
+                return ""
+        return (self.headers.get("x-api-key") or "").strip()
 
     def _route(self) -> str:
         path = self.path.split("?")[0]
@@ -353,6 +421,8 @@ class EngineHandler(BaseHTTPRequestHandler):
 
         if is_chat or is_anthropic:
             requested = request_json.get("model")
+            if not isinstance(requested, str):
+                requested = None  # a number or an object names no model
             alias = engine.resolve(requested)
             if alias is None:
                 alias = engine.fallback(requested)
@@ -361,6 +431,14 @@ class EngineHandler(BaseHTTPRequestHandler):
                         "model_not_found",
                         f"unknown model {requested!r}. Known: "
                         + ", ".join(engine.routable_aliases())))
+            # Before acquire(): finding out afterwards means swapping a 30GB
+            # model in, cutting whatever was streaming, only to send a 404.
+            target = engine.engine_of(alias)
+            if is_anthropic and not target.startswith("mtplx"):
+                return self._raw(404, _error(
+                    "unsupported_api",
+                    f"/v1/messages is an MTPLX route; {alias} runs on "
+                    f"{target}, which serves the OpenAI API only"))
             try:
                 current = engine.supervisor.acquire(alias)
             except StartupFailed as exc:
@@ -370,16 +448,12 @@ class EngineHandler(BaseHTTPRequestHandler):
             # Anything else is relayed only if something is already serving.
             # A GET must never boot a 30GB model: llama.cpp clients poll /props
             # and /slots, and doing that would be absurd.
-            status = engine.supervisor.status()
-            if status["state"] != State.READY.value:
+            current = engine.supervisor.acquire_current()
+            if current is None:
                 return self._raw(503, _error(
                     "no_model_loaded",
                     "no model loaded - send a chat completion to start one"))
-            try:
-                current = engine.supervisor.acquire(status["model"])
-            except StartupFailed as exc:
-                return self._raw(503, _error("model_start_failed", exc.message()))
-            alias, requested = status["model"], status["model"]
+            alias, requested = current.alias, current.alias
 
         epoch = current.epoch
         trace = is_chat or is_anthropic
@@ -699,8 +773,10 @@ class EngineHandler(BaseHTTPRequestHandler):
         #
         # The client's header flows downstream untouched. If the two disagree we
         # want the 401, not a silent success against a key the user didn't think
-        # they were using. Fill one in only when nothing was sent, so a client
-        # configured with no key at all still works.
+        # they were using. Fill one in only when nothing was sent: with the
+        # default key that keeps a client configured with no key at all
+        # working; with a real one, _admit has already checked the client's
+        # x-api-key.
         if not any(k.lower() == "authorization" for k in headers):
             headers["Authorization"] = f"Bearer {self.engine.api_key}"
         return headers
@@ -822,7 +898,8 @@ class Engine:
                        spec_decode=args.spec_decode, ctx=args.ctx,
                        reasoning_effort=getattr(args, 'reasoning_effort', None),
                        sandbox=getattr(args, "sandbox", True),
-                       bind=getattr(args, "model_bind", None) or MODEL_BIND)
+                       bind=getattr(args, "model_bind", None) or MODEL_BIND,
+                       api_key=args.api_key)
         self.supervisor = Supervisor(
             self.machine, self.registry, self.infos, opts,
             port=args.upstream_port, log_dir=args.log_dir,
@@ -895,6 +972,10 @@ class Engine:
         self.supervisor.on_load = db.record_load
         self.supervisor.on_unload = db.record_unload
         self.supervisor.on_failure = db.record_failure
+
+    def engine_of(self, alias: str) -> str:
+        info = next((i for i in self.infos if i.alias == alias), None)
+        return info.engine if info else ""
 
     def routable_aliases(self) -> list[str]:
         return [i.alias for i in self.infos

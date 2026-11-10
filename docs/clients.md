@@ -29,9 +29,14 @@ string. The engine passes whatever the client sent straight through — if the t
 disagree you get the 401, rather than a silent success against a key you didn't
 think you were using — and fills one in only when the client sent nothing at all.
 
-Change it with `api_key` in `config.json`, or `--api-key` on both `inference
-engine` and `inference run`; going direct to
-`8083` needs the same value.
+Set a real key with `api_key` in `config.json`, `INFERENCE_API_KEY`, or
+`--api-key` on `inference engine` (and on `inference run`, for a server you
+start by hand). The engine then **checks it on every request** except
+`/health` and the dashboard page itself: clients send
+`Authorization: Bearer <key>` (Anthropic-API clients can send `x-api-key`), and
+anything else gets a 401. The dashboard asks for the key the first time it
+needs it and keeps it in that browser. MTPLX is started with the same key, so
+going direct to `8083` needs it too.
 
 ## Open WebUI
 

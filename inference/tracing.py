@@ -44,16 +44,29 @@ def repair_tool_args(request: dict) -> list[str]:
     which 500s every subsequent request and ends the session. `{}` is what the
     model meant, so this repairs it in flight. Mutates `request`; returns the
     names of the tools it touched, so the caller can record the change.
+
+    `null` is repaired the same way. Arguments sent as an object rather than
+    the JSON string the API specifies are serialised: that is what the client
+    meant, and the server would refuse the object. Anything else malformed is
+    left for the server to refuse - this must never be the thing that throws.
     """
     repaired = []
     for message in request.get("messages") or []:
-        if message.get("role") != "assistant":
+        if not isinstance(message, dict) or message.get("role") != "assistant":
             continue
         for call in message.get("tool_calls") or []:
-            function = call.get("function") or {}
-            if function.get("arguments", "").strip() == "":
+            function = call.get("function") if isinstance(call, dict) else None
+            if not isinstance(function, dict):
+                continue
+            arguments = function.get("arguments")
+            if arguments is None or (isinstance(arguments, str)
+                                      and arguments.strip() == ""):
                 function["arguments"] = "{}"
-                repaired.append(function.get("name") or "?")
+            elif isinstance(arguments, (dict, list)):
+                function["arguments"] = json.dumps(arguments)
+            else:
+                continue
+            repaired.append(function.get("name") or "?")
     return repaired
 
 

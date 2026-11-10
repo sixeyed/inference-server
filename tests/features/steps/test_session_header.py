@@ -29,7 +29,7 @@ def loaded(make_harness, alias):
        target_fixture="live")
 def loaded_with_key(make_harness, alias, key):
     harness = make_harness(api_key=key)
-    assert harness.chat(alias)[0] == 200
+    assert harness.chat(alias, headers={"Authorization": f"Bearer {key}"})[0] == 200
     return harness
 
 

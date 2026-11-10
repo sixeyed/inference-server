@@ -198,7 +198,7 @@ def resolve(name: str | None, index: dict[str, str]) -> str | None:
     because "serve something anyway" is right for a chat client and wrong for a
     benchmark.
     """
-    if not name:
+    if not name or not isinstance(name, str):
         return None
     candidate = name.strip().lower()
     if candidate in index:

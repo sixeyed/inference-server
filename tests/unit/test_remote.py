@@ -168,3 +168,19 @@ def test_a_remote_pull_asks_for_the_weights_the_launch_will_need():
     remote.RemoteHost(CONFIG, runner=mac).pull(
         "kat-coder2.5", None, Options(spec_decode=False, thinking=True), say=lambda _: None)
     assert mac.commands[0].endswith("-m inference pull kat-coder2.5 --thinking --no-spec")
+
+
+def test_a_real_api_key_goes_to_the_mac_with_the_launch():
+    # MTPLX on the Mac must be started with the engine's key, or every request
+    # the engine relays to it is a 401.
+    mac = FakeMac(("--plan", ok({"ok": True, "sha": None})))
+    remote.RemoteHost(CONFIG, runner=mac).preflight(
+        "qwen3-tiny", None, Options(port=8083, api_key="s3cret"))
+    assert "--api-key s3cret" in mac.commands[0]
+
+
+def test_the_default_key_is_not_sent_so_an_older_mac_checkout_still_works():
+    mac = FakeMac(("--plan", ok({"ok": True, "sha": None})))
+    remote.RemoteHost(CONFIG, runner=mac).preflight(
+        "qwen3-tiny", None, Options(port=8083, api_key="none"))
+    assert "--api-key" not in mac.commands[0]

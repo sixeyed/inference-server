@@ -138,6 +138,27 @@ def test_identical_pairs_that_are_not_consecutive_do_not_count():
     assert info == []
 
 
+def test_a_message_between_identical_pairs_breaks_the_run():
+    # Spans skip anything that isn't a tool exchange, so these three are
+    # neighbours in spans() - but collapsing them would delete the user's
+    # message along with the repeats.
+    msgs = _convo(_pair(cid="a"), _pair(cid="b"),
+                  [{"role": "user", "content": "try again"}],
+                  _pair(cid="c"), _pair(cid="d"))
+    out, info = loops.collapse(msgs, threshold=3)
+    assert info == []
+    assert out == msgs
+
+
+def test_a_run_after_an_interruption_still_collapses_on_its_own():
+    msgs = _convo(_pair(cid="a"),
+                  [{"role": "user", "content": "try again"}],
+                  _pair(cid="b"), _pair(cid="c"), _pair(cid="d"))
+    out, info = loops.collapse(msgs, threshold=3)
+    assert [i["repeats"] for i in info] == [3]
+    assert {"role": "user", "content": "try again"} in out
+
+
 # ----------------------------------------------- what the model is left with
 def test_the_note_carries_the_result():
     """Deleting the run must not delete what came back - a repeated call that

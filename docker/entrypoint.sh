@@ -21,5 +21,4 @@ exec python -m inference engine \
     --trace-dir /data/traces \
     --log-dir /data/logs \
     --settings /data/settings.json \
-    --trust-proxy \
     "$@"

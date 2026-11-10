@@ -5,7 +5,7 @@
     "host.docker.internal is the Mac running Docker Desktop, from inside a container.",
     "For an engine on another machine, use the Mac's hostname for ssh and address,",
     "and set model_bind so the model servers listen on an interface it can reach -",
-    "plus a real api_key, which the model servers check too.",
+    "plus a real api_key: the engine then requires it from every client, and MTPLX checks it too.",
     "machine is the Mac's profile: python3 -m inference machine on the Mac prints it.",
     "identity and known_hosts are where the entrypoint copies the files compose",
     "mounts under /etc/inference/ssh - with the 0600 permissions ssh insists on."

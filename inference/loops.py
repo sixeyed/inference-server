@@ -137,7 +137,12 @@ def collapse(messages: list, threshold: int) -> tuple[list, list[dict]]:
     i = 0
     while i < len(prints):
         j = i
-        while j + 1 < len(prints) and prints[j + 1] == prints[i]:
+        # Same fingerprint *and* back to back in the conversation. Spans skip
+        # whatever isn't a tool exchange, so two identical calls with a user's
+        # "try again" between them are neighbours in `found` - and collapsing
+        # them would delete the user's message along with the repeats.
+        while (j + 1 < len(prints) and prints[j + 1] == prints[i]
+               and found[j + 1][0] == found[j][1]):
             j += 1
         if j - i + 1 >= threshold:
             runs.append((i, j))

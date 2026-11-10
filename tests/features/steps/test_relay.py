@@ -155,3 +155,76 @@ def deferral_visible(live):
 def deferral_recorded(live):
     row = live.rows("SELECT deferral_ms FROM requests ORDER BY id DESC LIMIT 1")[0]
     assert row["deferral_ms"] > 0, row
+
+
+# ------------------------------------------------------------
+@when(parsers.parse('a client sends a /v1/messages request for "{alias}"'))
+def anthropic_request(live, context, alias):
+    from inference import models
+    info = next(i for i in models.describe(live.engine.machine, live.engine.registry)
+                if i.alias == alias)
+    assert not info.engine.startswith("mtplx"), "the scenario needs a non-MTPLX model"
+    context["status"], context["body"] = live.request(
+        "/v1/messages", {"model": alias, "max_tokens": 16,
+                         "messages": [{"role": "user", "content": "hi"}]})
+
+
+@when("a client sends a chat request whose model is 42")
+def numeric_model(live, context):
+    context["status"], context["body"] = live.request(
+        "/v1/chat/completions",
+        {"model": 42, "messages": [{"role": "user", "content": "hi"}]})
+
+
+@when("a client sends a conversation containing a tool call with null arguments")
+def send_null_args(live, context):
+    payload = {
+        "model": "qwen3.8",
+        "messages": [
+            {"role": "user", "content": "go"},
+            {"role": "assistant", "tool_calls": [
+                {"id": "c1", "type": "function",
+                 "function": {"name": "list_dir", "arguments": None}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "ok"},
+        ],
+    }
+    context["status"], context["body"] = live.request(
+        "/v1/chat/completions", payload)
+    assert context["status"] == 200, context["body"][:300]
+
+
+@when(parsers.parse('the engine swaps to "{alias}" while a GET still sees "{stale}" ready'))
+def swap_under_a_get(live, alias, stale, monkeypatch):
+    assert live.chat(alias)[0] == 200
+    # What status() said before the swap landed - the window the GET relay used
+    # to read and then act on.
+    stale_status = dict(live.engine.supervisor.status(), model=stale, state="ready")
+    monkeypatch.setattr(live.engine.supervisor, "status", lambda: stale_status)
+    with pytest.raises(Exception):
+        live.get("/props")  # the fake answers 404; what matters is what it hit
+
+
+@then(parsers.parse('the response is {code:d} "{kind}"'))
+def response_code_kind(context, code, kind):
+    assert context["status"] == code, context["body"][:300]
+    assert kind in context["body"].decode()
+
+
+@then(parsers.parse("the response is {code:d}"))
+def response_code(context, code):
+    assert context["status"] == code, context["body"][:300]
+
+
+@then(parsers.parse('"{alias}" is still the only model started'))
+def only_started(live, alias):
+    assert live.launcher.started == [alias]
+
+
+@then(parsers.parse('the models started were "{names}"'))
+def started_were(live, names):
+    assert live.launcher.started == [n.strip() for n in names.split(",")]
+
+
+@then(parsers.parse('the engine is serving "{alias}"'))
+def serving(live, alias):
+    assert live.engine.supervisor.current.alias == alias

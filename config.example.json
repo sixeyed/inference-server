@@ -6,7 +6,7 @@
     "fresh clone works with no file at all - serving 127.0.0.1 only.",
     "Environment variables win over this file: INFERENCE_WEIGHTS_ROOT,",
     "INFERENCE_BIND, INFERENCE_MODEL_BIND, INFERENCE_AUTO_PULL,",
-    "INFERENCE_CONFIG, HF_HOME, HF_TOKEN, MTPLX_API_KEY."
+    "INFERENCE_CONFIG, INFERENCE_API_KEY, INFERENCE_TRUST_PROXY, HF_HOME, HF_TOKEN."
   ],
 
   "weights_root": "~",

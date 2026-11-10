@@ -149,7 +149,8 @@ Two things it does differently from the other two engines:
   the clients here already have in their API-key field. **No client config
   changes.** Note it must be that four-character string, not an empty one — an
   empty key is rejected like a missing one. Set `api_key` in `config.json` if
-  you want a real one.
+  you want a real one — MTPLX is started with it, and the engine enforces it
+  for every client (see [Clients](clients.md)).
 - **It appends a tok/s footer to responses by default.** That lands inside
   assistant content, so it would corrupt transcripts and anything parsing tool
   calls out of a reply. The harness always passes `--no-stats-footer`.

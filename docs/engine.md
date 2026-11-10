@@ -71,10 +71,11 @@ Run the same image anywhere that can SSH to the Mac — a server, a cluster. Set
 in the engine's config to an address on the Mac that the engine can reach
 (`0.0.0.0` for all of them): the engine passes it to `inference run` on the Mac,
 and by default model servers listen on loopback only. Opening `model_bind` puts
-the model servers on your network, so set a real `api_key` too — MTPLX checks
-it, and the engine passes it through. Behind a reverse proxy,
-`--trust-proxy` (on in the image) takes each client's address from
-`X-Forwarded-For`.
+the model servers on your network, so set a real `api_key` too — the engine
+checks it on every request, and MTPLX is started with it. Behind a reverse
+proxy you run, set `trust_proxy: true` (or `INFERENCE_TRUST_PROXY=1`) to take
+each client's address from `X-Forwarded-For`. It is off in the image: with no
+proxy in front, any client could claim any address.
 
 Test with `qwen3-tiny` — Qwen3 0.6B, 639MB, routable by name but never listed in
 `/v1/models` — rather than loading 20GB next to whatever else the Mac is doing.

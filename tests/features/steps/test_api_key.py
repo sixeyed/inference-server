@@ -50,3 +50,74 @@ def upstream_saw(live, value):
 @then("the engine reported it ready")
 def reported_ready(live):
     assert live.get("/health")["state"] == "ready"
+
+
+# ------------------------------------------------------------
+# A real key: the engine enforces it
+# ------------------------------------------------------------
+@given(parsers.parse('an engine with the API key "{key}"'), target_fixture="live")
+def engine_with_key(make_harness, key):
+    return make_harness(api_key=key)
+
+
+@given(parsers.parse('an engine with the API key "{key}" and its dashboard'),
+       target_fixture="live")
+def engine_with_key_and_ui(make_harness, key):
+    harness = make_harness(api_key=key, ui=True)
+    harness.key = key
+    return harness
+
+
+@given("an engine with its dashboard", target_fixture="live")
+def engine_with_ui(make_harness):
+    return make_harness(ui=True)
+
+
+@when(parsers.parse('a client sends a chat request with x-api-key "{key}"'))
+def with_x_api_key(live, context, key):
+    context["status"], context["body"] = live.chat(
+        "qwen3.8", headers={"x-api-key": key})
+
+
+@then("no model was started")
+def nothing_started(live):
+    assert live.launcher.started == []
+
+
+def _call(live, method, path, headers=None):
+    import urllib.error
+    import urllib.request
+    request = urllib.request.Request(
+        live.base + path, method=method, headers=headers or {},
+        data=b"{}" if method == "POST" else None)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+
+
+@then(parsers.parse('GET "{path}" without the key is {code:d}'))
+def get_without_key(live, path, code):
+    assert _call(live, "GET", path) == code
+
+
+@then(parsers.parse('GET "{path}" with the key is {code:d}'))
+def get_with_key(live, path, code):
+    assert _call(live, "GET", path,
+                 {"Authorization": f"Bearer {live.key}"}) == code
+
+
+@then(parsers.parse('POST "{path}" without the key is {code:d}'))
+def post_without_key(live, path, code):
+    assert _call(live, "POST", path) == code
+
+
+@then(parsers.parse('POST "{path}" from origin "{origin}" is {code:d}'))
+def post_from_origin(live, path, origin, code):
+    assert _call(live, "POST", path, {"Origin": origin}) == code
+
+
+@then(parsers.parse('POST "{path}" from its own origin is {code:d}'))
+def post_same_origin(live, path, code):
+    assert _call(live, "POST", path, {"Origin": live.base}) == code

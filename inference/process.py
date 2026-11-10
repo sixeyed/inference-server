@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from . import weights
-from .config import DEFAULT_LISTEN_PORT, DEFAULT_PORT, SANDBOX_PROFILE
+from .config import DEFAULT_LISTEN_PORT, DEFAULT_PORT, NO_AUTH_KEY, SANDBOX_PROFILE
 from .console import blue, cyan, green, grey, quote, red, yellow
 from .engines import resolve_engine, resolve_spec_decode
 from .machine import Machine, Options, Unsupported
@@ -140,7 +140,11 @@ def prepare(module, machine: Machine, opts: Options, warn=None):
     if spec_decode is not opts.spec_decode:
         opts = replace(opts, spec_decode=spec_decode)
 
-    return module.spec(machine, opts), warning
+    spec = module.spec(machine, opts)
+    # Model files don't set the key; the run does. Only MTPLX checks one.
+    if getattr(spec, "api_key", opts.api_key) != opts.api_key:
+        spec = replace(spec, api_key=opts.api_key)
+    return spec, warning
 
 
 def weights_are_local(spec) -> bool:
@@ -433,7 +437,8 @@ def _banner(model_name: str, engine: str, spec, machine: Machine, port: int) -> 
                          f"presence={spec.presence_penalty} "
                          f"frequency={spec.frequency_penalty}"),
             ("Engine", "MTPLX (MLX, native MTP speculative decode)"),
-            ("API key", f"{spec.api_key} (not a secret - see config.py)"),
+            ("API key", f"{spec.api_key} (not a secret - see config.py)"
+                        if spec.api_key == NO_AUTH_KEY else "set (from api_key)"),
         ]
     else:
         rows = [
@@ -455,8 +460,11 @@ def _banner(model_name: str, engine: str, spec, machine: Machine, port: int) -> 
     if isinstance(spec, MtplxServerSpec):
         print(yellow(f"  Anthropic-compat:  http://{machine.host}:{port}/v1/messages"))
         print()
-        print(grey(f"  Clients send `Authorization: Bearer {spec.api_key}` - a"))
-        print(grey("  0.0.0.0 bind requires a key, so this is the one they already send."))
+        if spec.api_key == NO_AUTH_KEY:
+            print(grey(f"  Clients send `Authorization: Bearer {spec.api_key}` - a"))
+            print(grey("  0.0.0.0 bind requires a key, so this is the one they already send."))
+        else:
+            print(grey("  Clients send `Authorization: Bearer <api_key>`."))
     print()
     print(yellow("Press Ctrl+C to stop"))
     print(blue(bar))

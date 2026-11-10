@@ -290,7 +290,9 @@ class FakeLauncher:
             popen = _DeadProcess()
         else:
             self.server = FakeModelServer(
-                model_id=model_id, engine=kind, api_key=self.api_key,
+                # The key the spec says - what the real server is started with.
+                model_id=model_id, engine=kind,
+                api_key=getattr(spec, "api_key", self.api_key),
                 ready_after=self.ready_after, **self.server_kwargs)
             self.server.start(self.port)
             popen = _LiveProcess()

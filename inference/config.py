@@ -191,6 +191,12 @@ DEFAULT_LISTEN_PORT = int(_setting("engine_port", 8084))
 BIND_HOST = _setting("bind", "127.0.0.1", env="INFERENCE_BIND")
 MODEL_BIND = _setting("model_bind", "127.0.0.1", env="INFERENCE_MODEL_BIND")
 
+# Take each client's address from X-Forwarded-For. Only behind a proxy you run
+# (an ingress): anywhere else a client can claim any address it likes, and the
+# address is part of how sessions are told apart.
+TRUST_PROXY = str(_setting("trust_proxy", False, env="INFERENCE_TRUST_PROXY")
+                  ).strip().lower() in ("1", "true", "yes", "on")
+
 # Fetch missing weights before a launch, outside the sandbox, rather than
 # refusing it - see weights.py. Off brings back the refusal.
 AUTO_PULL = str(_setting("auto_pull", True, env="INFERENCE_AUTO_PULL")
@@ -201,10 +207,15 @@ AUTO_PULL = str(_setting("auto_pull", True, env="INFERENCE_AUTO_PULL")
 # so this is literally the string the clients here already send in their
 # API-key field, which keeps every client config working untouched.
 #
-# Deliberately not a secret: off loopback it is equivalent to no auth. Set
-# api_key in config.json if that changes (MTPLX_API_KEY for a server started by
-# hand).
-DEFAULT_API_KEY = _setting("api_key", "none")
+# The default is deliberately not a secret, and with it the engine checks
+# nothing. Set a real api_key (config.json or INFERENCE_API_KEY) and the engine
+# enforces it: every request but /health and the dashboard's static files
+# needs `Authorization: Bearer <key>`. See EngineHandler._authorized.
+DEFAULT_API_KEY = _setting("api_key", "none", env="INFERENCE_API_KEY")
+
+# The key that means "no auth". Kept apart from DEFAULT_API_KEY, which is
+# whatever this machine's config says.
+NO_AUTH_KEY = "none"
 
 
 # ============================================================

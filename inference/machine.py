@@ -13,7 +13,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from .config import DEFAULT_PORT, MACHINE_PROFILES, MODEL_BIND
+from .config import DEFAULT_API_KEY, DEFAULT_PORT, MACHINE_PROFILES, MODEL_BIND
 
 
 class Unsupported(Exception):
@@ -163,3 +163,6 @@ class Options:
     # Where the model server binds. Loopback unless something off this machine
     # has to reach it directly - see config.MODEL_BIND.
     bind: str = MODEL_BIND
+    # The key a model server that checks one (MTPLX) is started with. The
+    # engine's --api-key, so the server and the engine's probe agree.
+    api_key: str = DEFAULT_API_KEY

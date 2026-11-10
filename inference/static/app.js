@@ -52,10 +52,58 @@ const STATE_STYLES = {
   failed:   "bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300",
 };
 
-const get = (path) => fetch(path).then((r) => r.json());
+// Everything a client sent - model names, addresses, tool names, session ids,
+// sampling params - reaches this page, so anything from the API goes through
+// esc() before it goes into innerHTML. Quotes too: some of it lands in
+// attributes.
+const esc = (t) => String(t == null ? "" : t)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+// With a real api_key the engine checks every /api and /v1 call. The page asks
+// for the key on the first 401, once, and keeps it in this browser.
+const KEY_STORE = "inference.apiKey";
+let sessionKey = "";
+const storedKey = () => {
+  try { return localStorage.getItem(KEY_STORE) || sessionKey; } catch { return sessionKey; }
+};
+let asking = null, declined = false;
+function askKey() {
+  if (declined) return Promise.resolve(false);
+  if (!asking) {
+    asking = new Promise((resolve) => setTimeout(() => {
+      const key = (window.prompt("This engine needs its API key:") || "").trim();
+      if (key) {
+        sessionKey = key;
+        try { localStorage.setItem(KEY_STORE, key); } catch { /* this tab only */ }
+      } else {
+        declined = true;  // stop asking on every poll; a reload asks again
+      }
+      asking = null;
+      resolve(Boolean(key));
+    }));
+  }
+  return asking;
+}
+async function api(path, init = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const key = storedKey();
+    const headers = { ...(init.headers || {}),
+                      ...(key ? { Authorization: `Bearer ${key}` } : {}) };
+    const response = await fetch(path, { ...init, headers });
+    if (response.status !== 401 || attempt > 0) return response;
+    if (key) {
+      sessionKey = "";
+      try { localStorage.removeItem(KEY_STORE); } catch { /* nothing stored */ }
+    }
+    if (!(await askKey())) return response;
+  }
+}
+
+const get = (path) => api(path).then((r) => r.json());
 const post = (path, body) =>
-  fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body || {}) });
+  api(path, { method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body || {}) });
 
 // A model swap kills whatever is streaming, so the button says so while a
 // request is in flight. Not a confirmation dialog - the person who can be
@@ -95,7 +143,7 @@ function renderServing(state, memory, machine) {
   if (state.state === "starting") {
     $("serving").innerHTML = `
       <div class="flex items-center gap-3 mb-3">
-        <span class="text-lg font-medium">${state.model || ""}</span>
+        <span class="text-lg font-medium">${esc(state.model)}</span>
         <span class="text-sm text-slate-500 dark:text-slate-400">loading…
           ${fmt.secs(state.starting_s)}</span>
       </div>
@@ -179,8 +227,8 @@ function renderStats(rows, preempted) {
   $("stats").innerHTML = rows.map((r) => {
     const cut = preempted[r.alias] || 0;
     return `<tr class="border-b border-slate-100 dark:border-[#262c36] last:border-0">
-      <td class="px-4 py-2.5 font-medium">${r.alias}
-        <span class="text-xs text-slate-500 dark:text-slate-400">${r.engine}</span></td>
+      <td class="px-4 py-2.5 font-medium">${esc(r.alias)}
+        <span class="text-xs text-slate-500 dark:text-slate-400">${esc(r.engine)}</span></td>
       <td class="px-4 py-2.5 text-right tabular-nums">${fmt.int(r.requests)}${
         cut ? `<span class="text-xs text-slate-500 dark:text-slate-400"> (${cut} cut)</span>` : ""}</td>
       <td class="px-4 py-2.5 text-right tabular-nums font-medium">${fmt.one(r.avg_tps)}</td>
@@ -227,7 +275,7 @@ const CLIENT_STYLE = {
 };
 const clientBadge = (c) => c
   ? `<span class="rounded px-1.5 py-0.5 text-xs ${CLIENT_STYLE[c]
-      || "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}">${c}</span>`
+      || "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}">${esc(c)}</span>`
   : `<span class="text-xs text-slate-400 dark:text-slate-600">&mdash;</span>`;
 
 function renderSessions(rows) {
@@ -242,11 +290,11 @@ function renderSessions(rows) {
     if (r.truncated) notes.push(`${r.truncated} truncated`);
     if (r.preempted) notes.push(`${r.preempted} cut`);
     if (r.errors) notes.push(`${r.errors} errors`);
-    return `<tr data-session="${r.session_id}"
+    return `<tr data-session="${esc(r.session_id)}"
       class="cursor-pointer border-b border-slate-100 dark:border-[#262c36]
              last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <td class="px-4 py-2.5 font-mono text-xs whitespace-nowrap">${fmt.stamp(r.started)}</td>
-      <td class="px-4 py-2.5 font-medium">${r.alias}</td>
+      <td class="px-4 py-2.5 font-medium">${esc(r.alias)}</td>
       <td class="px-4 py-2.5">${clientBadge(r.client)}</td>
       <td class="px-4 py-2.5 text-right tabular-nums">${fmt.int(r.turns)}</td>
       <td class="px-4 py-2.5 text-right tabular-nums font-medium">${fmt.one(r.tps)}</td>
@@ -279,16 +327,16 @@ function renderRecent(rows) {
   }
   $("recent").innerHTML = rows.map((r) => {
     const dim = r.preempted || !r.ok;
-    return `<div ${r.session_id ? `data-req-session="${r.session_id}"` : ""}
+    return `<div ${r.session_id ? `data-req-session="${esc(r.session_id)}"` : ""}
       class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 ${
         r.session_id ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : ""} ${
         dim ? "text-slate-400 dark:text-slate-600" : ""}">
       <span class="text-slate-400 dark:text-slate-500 whitespace-nowrap">${fmt.stamp(r.ts)}</span>
-      <span class="text-slate-400 dark:text-slate-500">${r.client_ip || "—"}</span>
-      <span class="font-medium">${r.alias}</span>
-      ${r.client ? `<span class="text-slate-400 dark:text-slate-500">${r.client}</span>` : ""}
+      <span class="text-slate-400 dark:text-slate-500">${esc(r.client_ip || "—")}</span>
+      <span class="font-medium">${esc(r.alias)}</span>
+      ${r.client ? `<span class="text-slate-400 dark:text-slate-500">${esc(r.client)}</span>` : ""}
       ${r.requested && r.requested !== r.alias
-        ? `<span class="text-amber-600 dark:text-amber-400">sent ${r.requested}</span>` : ""}
+        ? `<span class="text-amber-600 dark:text-amber-400">sent ${esc(r.requested)}</span>` : ""}
       <span>ctx ${fmt.int(r.context_tokens)}</span>
       <span>out ${fmt.int(r.output_tokens)}</span>
       <span>${fmt.one(r.decode_tps)} tok/s</span>
@@ -366,7 +414,7 @@ async function sendChat(event) {
   let ttft = null, tokens = 0, reasoning = 0;
 
   try {
-    const response = await fetch("/v1/chat/completions", {
+    const response = await api("/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -541,7 +589,7 @@ function renderPromptConfig(data) {
                         bg-white dark:bg-[#161b22] p-4">
       <div class="flex flex-wrap items-center gap-3">
         ${clientBadge(client)}
-        <select data-prompt-client="${client}"
+        <select data-prompt-client="${esc(client)}"
                 class="rounded-md border border-slate-300 dark:border-slate-600
                        bg-transparent px-2 py-1 text-sm">
           <option value="">pass through unchanged</option>
@@ -552,7 +600,7 @@ function renderPromptConfig(data) {
       </div>
       ${sets.length ? `<div class="mt-3 flex flex-wrap items-center gap-3">
         <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">tools</span>
-        <select data-toolset-client="${client}"
+        <select data-toolset-client="${esc(client)}"
                 class="rounded-md border border-slate-300 dark:border-slate-600
                        bg-transparent px-2 py-1 text-sm">
           <option value="">offer every tool the client sends</option>
@@ -566,7 +614,7 @@ function renderPromptConfig(data) {
         <label class="flex items-center gap-2 text-sm">
           collapse after
           <input type="number" min="0" max="99" step="1" value="${loopAt}"
-                 data-loop-client="${client}"
+                 data-loop-client="${esc(client)}"
                  class="w-16 rounded-md border border-slate-300 dark:border-slate-600
                         bg-transparent px-2 py-1 text-sm">
           identical tool calls
@@ -589,7 +637,7 @@ function renderPromptConfig(data) {
       </div>` : ""}` : ""}
       ${blocks.length ? `<div class="mt-4 flex flex-wrap gap-3">
         ${blocks.map((b) => `<label class="flex items-center gap-2 text-sm">
-          <input type="checkbox" data-prompt-block="${client}" value="${b}"
+          <input type="checkbox" data-prompt-block="${esc(client)}" value="${esc(b)}"
                  ${active.has(b) ? "checked" : ""}
                  class="h-4 w-4 accent-sky-600">
           <span class="font-mono text-xs">${b}</span>${
@@ -601,8 +649,8 @@ function renderPromptConfig(data) {
   }).join("");
 
   const save = (client) => {
-    const file = document.querySelector(`[data-prompt-client="${client}"]`).value;
-    const replace = [...document.querySelectorAll(`[data-prompt-block="${client}"]`)]
+    const file = document.querySelector(`[data-prompt-client="${CSS.escape(client)}"]`).value;
+    const replace = [...document.querySelectorAll(`[data-prompt-block="${CSS.escape(client)}"]`)]
       .filter((b) => b.checked).map((b) => b.value);
     post("/api/settings", { prompt: { client, file, replace } }).then(loadSettings);
   };
@@ -731,9 +779,9 @@ async function showSession(id) {
   const from = parseTs(s.started), to = parseTs(s.ended);
   const wall = from && to ? (to - from) / 1000 : null;
   $("session-summary").innerHTML = `
-    <h2 class="flex flex-wrap items-center gap-3 text-lg font-semibold">${s.alias}
+    <h2 class="flex flex-wrap items-center gap-3 text-lg font-semibold">${esc(s.alias)}
       ${clientBadge(s.client)}
-      <span class="font-mono text-xs font-normal text-slate-500 dark:text-slate-400">${s.session_id}</span>
+      <span class="font-mono text-xs font-normal text-slate-500 dark:text-slate-400">${esc(s.session_id)}</span>
     </h2>
     <div class="mt-4 grid gap-5 sm:grid-cols-3 lg:grid-cols-6">
       ${stat("Turns", fmt.int(s.turns))}
@@ -768,7 +816,7 @@ async function showSession(id) {
       <td class="px-3 py-2 text-right tabular-nums ${
         t.deferral_ms > 10000 ? "text-amber-600 dark:text-amber-400" : ""
       }">${t.deferral_ms ? fmt.ms(t.deferral_ms) : "\u2014"}</td>
-      <td class="px-3 py-2 font-mono text-xs">${t.tool_names || "\u2014"}${
+      <td class="px-3 py-2 font-mono text-xs">${esc(t.tool_names || "\u2014")}${
         repeat ? `<span class="ml-2 text-amber-600 dark:text-amber-400">repeat \u00d7${repeats + 1}</span>` : ""}</td>
       <td class="px-3 py-2 text-xs ${
         t.preempted || !t.ok || t.finish_reason === "length"
@@ -804,20 +852,17 @@ const ROLE_STYLE = {
 function messageBlock(m) {
   const calls = (m.tool_calls || []).map((c) => `
     <div class="mt-2 rounded bg-slate-100 dark:bg-[#0d1117] p-2 font-mono text-xs">
-      <span class="text-sky-700 dark:text-sky-400">${c.name}</span>(<span
+      <span class="text-sky-700 dark:text-sky-400">${esc(c.name)}</span>(<span
         class="whitespace-pre-wrap break-all">${esc(c.arguments)}</span>)${
         c.clipped ? '<span class="text-amber-600 dark:text-amber-400"> …clipped</span>' : ""}
     </div>`).join("");
   return `<div class="border-l-2 ${ROLE_STYLE[m.role] || ROLE_STYLE.tool} pl-3 py-1">
-    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">${m.role}</div>
+    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(m.role)}</div>
     ${m.content ? `<pre class="mt-1 whitespace-pre-wrap break-words text-sm">${esc(m.content)}${
       m.clipped ? '<span class="text-amber-600 dark:text-amber-400"> …clipped</span>' : ""}</pre>` : ""}
     ${calls}
   </div>`;
 }
-
-const esc = (t) => String(t == null ? "" : t)
-  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 async function showTurn(id) {
   currentTurn = id;
@@ -873,7 +918,7 @@ async function showTurn(id) {
   $("turn-body").innerHTML = metrics + `
     <div class="mb-3 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
       <span>${tr.tools.length} tools offered</span>
-      <span>${Object.entries(tr.params).map(([k, v]) => `${k}=${v}`).join(" ") || "no sampling params sent"}</span>
+      <span>${Object.entries(tr.params).map(([k, v]) => esc(`${k}=${typeof v === "object" ? JSON.stringify(v) : v}`)).join(" ") || "no sampling params sent"}</span>
       ${notes.map((n) => `<span class="text-amber-600 dark:text-amber-400">${esc(n)}</span>`).join("")}
     </div>
 

@@ -400,10 +400,14 @@ class UsageDB:
         if self._supervisor is None:
             return
         self._stop_sampling()
-        self._sampling.clear()
+        # A fresh event per sampler. Reusing one and clearing it here races the
+        # old sampler: one that is mid-rss_mb() - an SSH call on a model host -
+        # when the set() and clear() both happen never sees the stop, and keeps
+        # writing the old alias's memory for good.
+        stop = self._sampling = threading.Event()
 
         def loop():
-            while not self._sampling.wait(self.sample_interval):
+            while not stop.wait(self.sample_interval):
                 rss = self._supervisor.rss_mb()
                 if rss is None:
                     continue

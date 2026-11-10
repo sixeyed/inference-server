@@ -18,6 +18,8 @@ import threading
 import time
 from dataclasses import dataclass, field, fields
 
+from .config import NO_AUTH_KEY
+
 
 class RemoteError(Exception):
     """The model host could not be asked, or answered with something unusable."""
@@ -80,6 +82,10 @@ def _run_flags(opts) -> list[str]:
         flags.append("--no-sandbox")
     if opts.ctx:
         flags += ["--ctx", str(opts.ctx)]
+    # Only a real key goes over: the Mac's own default is "none" too, and
+    # leaving it off keeps a Mac checkout older than the engine working.
+    if opts.api_key != NO_AUTH_KEY:
+        flags += ["--api-key", opts.api_key]
     return flags + _spec_flags(opts)
 
 

@@ -32,20 +32,22 @@ This one serves the network — the defaults keep everything on `127.0.0.1`:
 | `model_bind` | `127.0.0.1` | where model servers listen; only open it up when the engine runs on another machine |
 | `auto_pull` | `true` | fetch missing weights before launch; `false` refuses instead |
 | `weights_root` | `~` | where the HuggingFace and MTPLX caches go |
-| `api_key` | `none` | the one key for clients and model servers |
-| `machines.<chip>.host` | `127.0.0.1` | the address the dashboard tells clients to use |
+| `api_key` | `none` | the one key for clients and model servers; anything but `none` is enforced on every request |
+| `trust_proxy` | `false` | take client addresses from `X-Forwarded-For` — only behind a proxy you run |
+| `machines.<chip>.host` | `localhost` | the address the dashboard tells clients to use |
 | `client_endpoints` | this machine | the addresses the dashboard's Clients tab offers |
 | `model_host` | none | drive a Mac's model servers over SSH — see [Running in a container](engine.md#running-in-a-container) |
 
 Everything listens on loopback until you say otherwise. If you open `bind` up,
-set a real `api_key` too: the default `none` is no auth at all.
+set a real `api_key` too: the default `none` is no auth at all. With a real key
+the engine refuses any request without it — see [Clients](clients.md).
 
 The chip is still detected; `machines` only supplies what follows from it, so a
 64GB M4 Max is a config change rather than a code change. Precedence is
 environment variable, then `config.json`, then the built-in default —
 `INFERENCE_WEIGHTS_ROOT`, `INFERENCE_BIND`, `INFERENCE_MODEL_BIND`,
-`INFERENCE_AUTO_PULL`, `INFERENCE_CONFIG`, `HF_HOME`, `HF_TOKEN` and
-`MTPLX_API_KEY` all win over the file, because setting one is a deliberate act at the moment of
+`INFERENCE_AUTO_PULL`, `INFERENCE_API_KEY`, `INFERENCE_TRUST_PROXY`,
+`INFERENCE_CONFIG`, `HF_HOME` and `HF_TOKEN` all win over the file, because setting one is a deliberate act at the moment of
 running something. One more is only for running off a Mac: `INFERENCE_MACHINE`
 names the profile to stand in when there is no chip to detect — the image's
 test stage sets it.

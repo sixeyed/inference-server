@@ -50,8 +50,10 @@ each is refused with the old model still loaded. Finding out after the swap
 costs a working session to learn something knowable beforehand.
 
 **A server you started by hand is adopted, not restarted.** If `inference run` already
-has something on 8083, the engine picks it up, uses it, and never kills it —
-including on its own shutdown.
+has something on 8083, the engine picks it up and uses it, and leaves it
+running when the engine shuts down. It is stopped like any other model when a
+request needs a different one, or on an unload — two models don't fit in
+memory at once.
 
 | Route | |
 |---|---|
