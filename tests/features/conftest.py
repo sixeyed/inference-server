@@ -28,11 +28,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 
 from inference import cli, models, server  # noqa: E402
-from inference.machine import detect_machine  # noqa: E402
+from inference.machine import machine_from_profile  # noqa: E402
 from inference.hosts import LocalHost  # noqa: E402
 from tests.fakes import FakeLauncher  # noqa: E402
 
 REAL_PORTS = {8083, 8084}
+
+# The Mac every scenario runs on: an M4 Max with 128GB, whatever is running the
+# suite. Which models fit depends on the machine, so the real one made the
+# suite pass here and fail on a smaller Mac - a CI runner has 7GB, and qwen3.8
+# refuses anything under 32GB.
+TEST_MACHINE = "m4"
+
+
+@pytest.fixture(autouse=True)
+def pinned_machine(monkeypatch):
+    monkeypatch.setattr(server, "detect_machine",
+                        lambda: machine_from_profile(TEST_MACHINE))
 
 
 def free_port() -> int:
@@ -194,7 +206,7 @@ def harness(make_harness):
 
 @pytest.fixture
 def machine():
-    return detect_machine()
+    return machine_from_profile(TEST_MACHINE)
 
 
 @pytest.fixture
