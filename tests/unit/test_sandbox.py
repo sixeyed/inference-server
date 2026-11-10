@@ -12,6 +12,7 @@ import sys
 
 import pytest
 
+from inference import engines
 from inference.config import SANDBOX_PROFILE
 from inference.machine import Machine, Options
 from inference.process import build_argv, weights_are_local
@@ -32,6 +33,18 @@ SPECS = [
     MlxServerSpec(hf_repo="o/r"),
     MtplxServerSpec(hf_repo="o/r", model_id="x"),
 ]
+
+
+@pytest.fixture(autouse=True)
+def installed_engines(monkeypatch):
+    """Every engine "installed", at a made-up path. build_argv looks each one
+    up on the PATH, so without this the suite only passed on a Mac that had
+    llama.cpp, mlx-lm and mtplx installed - a CI runner has none of them."""
+    for name, exe in (("find_llama_server", "llama-server"),
+                      ("find_mlx_server", "mlx_lm.server"),
+                      ("find_mtplx", "mtplx")):
+        monkeypatch.setattr(engines, name,
+                            lambda exe=exe: f"/opt/engines/bin/{exe}")
 
 
 def _argv(spec, **kw):
